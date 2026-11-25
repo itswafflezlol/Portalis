@@ -435,10 +435,12 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
         await bot.store.save()
 
         await interaction.response.send_message(
-            "Last step — **send a screenshot** of our ad posted in your "
-            "server. Upload the image in this channel and staff will "
-            "review everything."
+            "Last step — post **our ad** (below) in your server, then "
+            "**send a screenshot** of it here. Staff will review "
+            "everything."
         )
+        if bot.cfg.get("our_ad"):
+            await interaction.followup.send(bot.cfg["our_ad"])
 
 
 class AdReviewView(discord.ui.LayoutView):

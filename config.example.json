@@ -23,5 +23,6 @@
     "event": 0
   },
   "paid_category_id": 0,
-  "kofi_link": "https://ko-fi.com/REPLACE-ME"
+  "kofi_link": "https://ko-fi.com/REPLACE-ME",
+  "our_ad": "# YOUR SERVER AD — shown to partners so they can post it"
 }
