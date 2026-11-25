@@ -33,6 +33,7 @@ WORDS = {
     "pings": "PING ME",
     "giveaway": "GIVEAWAY",
     "server": "WELCOME",
+    "rules": "RULES",
 }
 
 

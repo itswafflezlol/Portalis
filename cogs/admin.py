@@ -75,6 +75,36 @@ class ServerInfoPanelView(discord.ui.LayoutView):
         ))
 
 
+class RulesPanelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://rules.gif"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 📜 Server Rules\n"
+                "**1.** No toxicity — keep it respectful.\n"
+                "**2.** No doxxing — in any way, shape or form.\n"
+                "**3.** Listen to staff guidelines.\n"
+                "**4.** Keep the chat clean.\n"
+                "**5.** Use common sense.\n"
+                "**6.** No NSFW.\n"
+                "**7.** Spam pinging mods gets you a timeout.\n"
+                "**8.** Follow Discord's Terms of Service.\n"
+                "**9.** No promoting your own Discord or anything else "
+                "without higher-staff permission — do it in self-promo "
+                "only, or it's a mute/ban.\n\n"
+                "Please — use common sense. ⚖️"
+            ),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+
 class PaidAdsPanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
@@ -183,6 +213,7 @@ PANELS = {
     "paidads": ("paidads.gif", PaidAdsPanelView),
     "pings": ("pings.gif", PingRolesView),
     "server": ("server.gif", ServerInfoPanelView),
+    "rules": ("rules.gif", RulesPanelView),
 }
 
 
@@ -200,6 +231,7 @@ class Admin(commands.Cog):
         app_commands.Choice(name="Paid ads", value="paidads"),
         app_commands.Choice(name="Ping roles", value="pings"),
         app_commands.Choice(name="Server info", value="server"),
+        app_commands.Choice(name="Rules", value="rules"),
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):
