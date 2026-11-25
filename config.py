@@ -16,8 +16,7 @@ DEFAULTS = {
     "ticket_category_id": 0,
     "ticket_log_channel_id": 0,
     "applications_channel_id": 0,
-    "partners_channel_id": 0,
-    "ads_channel_id": 0,
+    "forum_channels": {"public": 0, "bedrock": 0, "smps": 0, "other": 0},
 }
 
 CONFIG_PATH = Path("config.json")

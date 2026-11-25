@@ -1,4 +1,5 @@
 import io
+import re
 
 import discord
 from discord.ext import commands
@@ -9,6 +10,15 @@ TICKET_TYPES = {
     "support": ("🛠️ Support", "Problems or questions for the staff team."),
     "partnership": ("🤝 Partnership", "Partner or advertise with SMP Portal."),
 }
+
+CATEGORIES = {
+    "public": ("Public", "🌍"),
+    "bedrock": ("Bedrock", "🪨"),
+    "smps": ("SMP", "⚔️"),
+    "other": ("Other", "📦"),
+}
+
+PING_RE = re.compile(r"@everyone|@here|<@!?\d+>|<@&\d+>")
 
 
 def is_staff(member: discord.Member, cfg: dict) -> bool:
@@ -120,6 +130,8 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
             users=[user], roles=[staff] if staff else []
         ),
     )
+    if kind == "partnership":
+        await channel.send(view=PartnershipQuestionsView())
     await interaction.followup.send(
         f"Ticket opened: {channel.mention}", ephemeral=True
     )
@@ -202,6 +214,128 @@ class TicketChannelView(discord.ui.LayoutView):
             return
         await interaction.response.send_message(
             "Close this ticket?", view=ConfirmCloseView(), ephemeral=True
+        )
+
+
+class PartnershipQuestionsView(discord.ui.LayoutView):
+    """Second message inside partnership tickets: pick a server type,
+    then submit the ad."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        sel = ui.Select(
+            placeholder="What describes your server?",
+            custom_id="portal:ticket:q1",
+            options=[
+                discord.SelectOption(label=label, value=key, emoji=emoji)
+                for key, (label, emoji) in CATEGORIES.items()
+            ],
+        )
+        sel.callback = self._pick_category
+        ad_btn = ui.Button(
+            label="Send your ad", style=discord.ButtonStyle.danger, emoji="📣",
+            custom_id="portal:ticket:sendad",
+        )
+        ad_btn.callback = lambda i: i.response.send_modal(AdModal())
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 📋 Partnership Questions\n"
+                "**1.** What describes your server? Pick one below.\n"
+                "**2.** Press **Send your ad** and paste it — "
+                "**no pings** or it won't be posted.\n"
+                "-# Reply with your FINAL answer only — don't say \"Hi\" "
+                "or \"Okay\"."
+            ),
+            ui.ActionRow(sel),
+            ui.ActionRow(ad_btn),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+    async def _pick_category(self, interaction: discord.Interaction):
+        bot = interaction.client
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        if ticket is None or ticket["type"] != "partnership":
+            await interaction.response.send_message(
+                "This isn't a partnership ticket.", ephemeral=True
+            )
+            return
+        if interaction.user.id != ticket["owner"]:
+            await interaction.response.send_message(
+                "Only the ticket owner answers this.", ephemeral=True
+            )
+            return
+        select = interaction.data["values"][0]
+        ticket["category"] = select
+        await bot.store.save()
+        label, emoji = CATEGORIES[select]
+        await interaction.response.send_message(
+            f"{emoji} Server type: **{label}** — now press **Send your ad** "
+            "and paste your ad (no pings)."
+        )
+
+
+class AdModal(discord.ui.Modal, title="Your server ad"):
+    ad = discord.ui.TextInput(
+        label="Paste your ad — no pings",
+        style=discord.TextStyle.paragraph, max_length=4000,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        bot = interaction.client
+        text = self.ad.value
+
+        if PING_RE.search(text):
+            await interaction.response.send_message(
+                "Your ad contains a ping — take out `@everyone`, `@here` "
+                "and any user/role mentions, then press **Send your ad** "
+                "again.", ephemeral=True,
+            )
+            return
+
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        if ticket is None or ticket["type"] != "partnership":
+            await interaction.response.send_message(
+                "This isn't a partnership ticket.", ephemeral=True
+            )
+            return
+        if interaction.user.id != ticket["owner"]:
+            await interaction.response.send_message(
+                "Only the ticket owner sends the ad.", ephemeral=True
+            )
+            return
+        if not ticket.get("category"):
+            await interaction.response.send_message(
+                "Pick your server type first (question 1).", ephemeral=True
+            )
+            return
+
+        forum = interaction.guild.get_channel(
+            bot.cfg["forum_channels"].get(ticket["category"], 0)
+        )
+        if forum is None:
+            await interaction.response.send_message(
+                "Ads aren't set up yet — missing forum for "
+                f"`{ticket['category']}` in config.json.", ephemeral=True,
+            )
+            return
+
+        label, _ = CATEGORIES[ticket["category"]]
+        thread = await forum.create_thread(
+            name=f"{interaction.user.display_name} — {label}",
+            content=text,
+        )
+        await thread.edit(locked=True)
+        ticket["posted_thread"] = thread.id
+        await bot.store.save()
+
+        await interaction.response.send_message(
+            f"📣 Your ad is live: {thread.jump_url}\n"
+            "Staff will review proof of your `@everyone` ping here."
         )
 
 
