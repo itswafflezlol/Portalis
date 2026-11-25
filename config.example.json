@@ -1,0 +1,11 @@
+{
+  "guild_id": 0,
+  "staff_role_id": 0,
+  "freelancer_role_id": 0,
+  "partner_role_id": 0,
+  "ticket_category_id": 0,
+  "ticket_log_channel_id": 0,
+  "applications_channel_id": 0,
+  "partners_channel_id": 0,
+  "ads_channel_id": 0
+}
