@@ -15,6 +15,8 @@ W, H = 1400, 480
 
 WORDS = {
     "tickets": "TICKETS",
+    "support": "SUPPORT",
+    "partnership": "PARTNERSHIP",
     "apply": "FREELANCE",
     "partner": "PARTNERS",
     "info": "INFO",

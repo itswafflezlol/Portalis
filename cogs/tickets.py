@@ -3,7 +3,7 @@ import io
 import discord
 from discord.ext import commands
 
-from branding import brand_embed, brand_files
+from branding import RED, panel_file
 
 TICKET_TYPES = {
     "support": ("🛠️ Support", "Problems or questions for the staff team."),
@@ -17,25 +17,45 @@ def is_staff(member: discord.Member, cfg: dict) -> bool:
     )
 
 
-class TicketPanelView(discord.ui.View):
+class TicketPanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
+        ui = discord.ui
 
-    @discord.ui.button(
-        label="Support Ticket", style=discord.ButtonStyle.danger, emoji="🛠️",
-        custom_id="portal:ticket:support",
-    )
-    async def support(self, interaction: discord.Interaction,
-                      button: discord.ui.Button):
-        await open_ticket(interaction, "support")
+        support = ui.Button(
+            label="Support Ticket", style=discord.ButtonStyle.danger,
+            emoji="🛠️", custom_id="portal:ticket:support",
+        )
+        support.callback = lambda i: open_ticket(i, "support")
+        partner = ui.Button(
+            label="Partnership Ticket", style=discord.ButtonStyle.danger,
+            emoji="🤝", custom_id="portal:ticket:partnership",
+        )
+        partner.callback = lambda i: open_ticket(i, "partnership")
 
-    @discord.ui.button(
-        label="Partnership Ticket", style=discord.ButtonStyle.danger, emoji="🤝",
-        custom_id="portal:ticket:partnership",
-    )
-    async def partnership(self, interaction: discord.Interaction,
-                          button: discord.ui.Button):
-        await open_ticket(interaction, "partnership")
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://tickets.webp"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🛠️ Support\n"
+                "Problems or questions for the staff team — open a ticket "
+                "and we'll help.\n"
+                "-# • Only 1 ticket open at a time"
+            ),
+            ui.ActionRow(support),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🤝 Partnership\n"
+                "Partner with SMP Portal or advertise your server — "
+                "terms, paid ads, and proof."
+            ),
+            ui.ActionRow(partner),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
 
 
 async def open_ticket(interaction: discord.Interaction, kind: str):
@@ -92,31 +112,59 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     await store.save()
 
     label, blurb = TICKET_TYPES[kind]
-    embed = brand_embed(
-        f"{label} Ticket",
-        f"Hey {user.mention} — {blurb}\n\n"
-        "Describe your request below and the team will be with you shortly.\n\n"
-        "• One ticket open at a time\n"
-        "• Staff can claim this ticket; anyone here can close it",
-    )
     mention = f"{user.mention}" + (f" {staff.mention}" if staff else "")
     await channel.send(
-        content=mention, embed=embed, view=TicketControlsView(), files=brand_files(),
+        view=TicketChannelView(kind, mention),
+        files=[panel_file(f"{kind}.webp")],
+        allowed_mentions=discord.AllowedMentions(
+            users=[user], roles=[staff] if staff else []
+        ),
     )
     await interaction.followup.send(
         f"Ticket opened: {channel.mention}", ephemeral=True
     )
 
 
-class TicketControlsView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
+class TicketChannelView(discord.ui.LayoutView):
+    """Branded welcome message inside a ticket channel, with claim/close
+    controls inside the container."""
 
-    @discord.ui.button(
-        label="Claim", style=discord.ButtonStyle.danger, emoji="🚩",
-        custom_id="portal:ticket_claim",
-    )
-    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+    def __init__(self, kind: str = "support", opener: str = ""):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        label, blurb = TICKET_TYPES.get(kind, TICKET_TYPES["support"])
+
+        self.claim_btn = ui.Button(
+            label="Claim", style=discord.ButtonStyle.danger, emoji="🚩",
+            custom_id="portal:ticket_claim",
+        )
+        self.claim_btn.callback = self._claim
+        close_btn = ui.Button(
+            label="Close", style=discord.ButtonStyle.secondary, emoji="🔒",
+            custom_id="portal:ticket_close",
+        )
+        close_btn.callback = self._close
+
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                f"attachment://{kind}.webp"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                f"## {label} Ticket\n"
+                f"Hey {opener} — {blurb}\n\n"
+                "Describe your request below and the team will be with "
+                "you shortly.\n"
+                "-# • One ticket open at a time · Staff can claim · "
+                "anyone here can close"
+            ),
+            ui.ActionRow(self.claim_btn, close_btn),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+    async def _claim(self, interaction: discord.Interaction):
         bot = interaction.client
         if not is_staff(interaction.user, bot.cfg):
             await interaction.response.send_message(
@@ -131,17 +179,13 @@ class TicketControlsView(discord.ui.View):
             return
         ticket["claimed_by"] = interaction.user.id
         await bot.store.save()
-        button.disabled = True
+        self.claim_btn.disabled = True
         await interaction.message.edit(view=self)
         await interaction.response.send_message(
             f"🚩 {interaction.user.mention} claimed this ticket."
         )
 
-    @discord.ui.button(
-        label="Close", style=discord.ButtonStyle.secondary, emoji="🔒",
-        custom_id="portal:ticket_close",
-    )
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _close(self, interaction: discord.Interaction):
         bot = interaction.client
         ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
         if ticket is None:

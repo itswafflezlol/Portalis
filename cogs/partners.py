@@ -19,16 +19,33 @@ def review_embed(req: dict, status: str, by: str = "",
     return e
 
 
-class PartnerPanelView(discord.ui.View):
+class PartnerPanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
+        ui = discord.ui
 
-    @discord.ui.button(
-        label="Advertise your server", style=discord.ButtonStyle.danger,
-        emoji="📣", custom_id="portal:partner_open",
-    )
-    async def open(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(PartnerModal())
+        ad_btn = ui.Button(
+            label="Advertise your server", style=discord.ButtonStyle.danger,
+            emoji="📣", custom_id="portal:partner_open",
+        )
+        ad_btn.callback = lambda i: i.response.send_modal(PartnerModal())
+
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://partner.webp"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 📣 Partner & Advertise\n"
+                "Get your server posted on our Discord and on the SMP "
+                "Portal website.\n"
+                "-# Your ad goes live once staff approve it"
+            ),
+            ui.ActionRow(ad_btn),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
 
 
 class PartnerModal(discord.ui.Modal, title="Partner / Advertise with us"):

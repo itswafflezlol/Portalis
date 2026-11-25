@@ -25,6 +25,10 @@ def brand_embed(title: str = None, description: str = "", images: bool = True,
     return e
 
 
+def panel_file(name: str) -> discord.File:
+    return discord.File(PANELS_DIR / name, filename=name)
+
+
 def brand_files(banner: str = None) -> list[discord.File]:
     files = [discord.File(PFP, filename="pfp.webp")]
     if banner:

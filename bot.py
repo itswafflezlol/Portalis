@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from config import TOKEN, load_config
 from storage import Store
-from cogs.tickets import TicketControlsView, TicketPanelView
+from cogs.tickets import TicketChannelView, TicketPanelView
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
 
@@ -30,7 +30,7 @@ class Portalis(commands.Bot):
         await self.store.connect()
 
         self.add_view(TicketPanelView())
-        self.add_view(TicketControlsView())
+        self.add_view(TicketChannelView())
         self.add_view(ApplyPanelView())
         self.add_view(PartnerPanelView())
 

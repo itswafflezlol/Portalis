@@ -2,102 +2,61 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from branding import brand_embed, brand_files
+from branding import RED, panel_file
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
 from cogs.tickets import TicketPanelView
 
 
-def info_embeds() -> list[discord.Embed]:
-    info = brand_embed(
-        description=(
-            "**🤝 Partnerships**\n"
-            "Hello valued member(s), in this embed we will cover the "
-            "requirements you must meet to partner with SMP Portal. Please "
-            "note that your partnership process can be put on pause at any "
-            "moment of partnering.\n\n"
-            "If your server meets these requirements, open a **Partnership** "
-            "ticket. When the bot asks a question, only respond with your "
-            "**final** answer — you can't take back a message. (E.g. don't "
-            "say \"Hi\" or \"Okay\".)"
-        ),
-        banner="info.webp",
-    )
-    info.add_field(
-        name="Requirements",
-        value=(
-            "• 25+ Members\n"
-            "• Server Owner must be the one to partner\n"
-            "• 3-day partnership cooldown\n"
-            "• Must ping `@everyone` and send valid proof"
-        ),
-        inline=False,
-    )
-
-    ads = brand_embed(
-        description=(
-            "**📣 Paid Ads**\n"
-            "In this embed we will discuss our paid ad conditions and "
-            "prices. Prices are subject to change. If you have any "
-            "questions, ask a Staff Member or Manager.\n\n"
-            "To discuss premium options — role pings, different category "
-            "channels, higher channel order — open a **Partnership** ticket."
-        ),
-        images=True, banner=None,
-    )
-    ads.set_image(url=None)
-    ads.add_field(
-        name="Payment Conditions",
-        value=(
-            "All payments are **final** — zero refunds. Payments are made "
-            "via a payment site sent to you when you open a paid ad "
-            "ticket. Accepts Credit + Debit and PayPal."
-        ),
-        inline=False,
-    )
-    ads.add_field(
-        name="Prices",
-        value=(
-            "**Custom channel** in the SMP-Partner category\n"
-            "• $15 — one week\n"
-            "• $45 — one month"
-        ),
-        inline=False,
-    )
-    return [info, ads]
+class InfoPanelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://info.webp"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🤝 Partnerships\n"
+                "Hello valued member(s), in this embed we will cover the "
+                "requirements you must meet to partner with SMP Portal. "
+                "Please note that your partnership process can be put on "
+                "pause at any moment of partnering.\n\n"
+                "**Requirements**\n"
+                "• 25+ Members\n"
+                "• Server Owner must be the one to partner\n"
+                "• 3-day partnership cooldown\n"
+                "• Must ping `@everyone` and send valid proof\n"
+                "-# If you meet these, open a Partnership ticket — and "
+                "reply with your FINAL answer only (don't say \"Hi\" or "
+                "\"Okay\")."
+            ),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 📣 Paid Ads\n"
+                "All payments are **final** — zero refunds. Payment is "
+                "made via a site sent to you when you open a paid ad "
+                "ticket, accepting Credit + Debit and PayPal.\n\n"
+                "**Prices**\n"
+                "**Custom channel** in the SMP-Partner category\n"
+                "• $10 — one week\n"
+                "• $25 — one month\n"
+                "-# Premium options — role pings, other categories, "
+                "higher channel order: open a Partnership ticket."
+            ),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
 
 
-# kind -> (banner file, description, view)
+# kind -> (banner file, view class)
 PANELS = {
-    "tickets": (
-        "tickets.webp",
-        "**🛠️ Support**\n"
-        "Problems or questions for the staff team — open a ticket and "
-        "we'll help.\n\n"
-        "**🤝 Partnership**\n"
-        "Partner with SMP Portal or advertise your server — terms, paid "
-        "ads, and proof.\n\n"
-        "• Only 1 ticket open at a time",
-        TicketPanelView,
-    ),
-    "apply": (
-        "apply.webp",
-        "**💼 Freelancer**\n"
-        "Offer your services through SMP Portal — devs, builders, "
-        "designers, editors and more.\n\n"
-        "Press the button and fill the short application; staff will "
-        "review it and get back to you.",
-        ApplyPanelView,
-    ),
-    "partner": (
-        "partner.webp",
-        "**📣 Partner & Advertise**\n"
-        "Get your server posted on our Discord and on the SMP Portal "
-        "website.\n\n"
-        "Press the button to submit your server — your ad goes live once "
-        "staff approve it.",
-        PartnerPanelView,
-    ),
+    "tickets": ("tickets.webp", TicketPanelView),
+    "apply": ("apply.webp", ApplyPanelView),
+    "partner": ("partner.webp", PartnerPanelView),
+    "info": ("info.webp", InfoPanelView),
 }
 
 
@@ -115,17 +74,10 @@ class Admin(commands.Cog):
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):
-        if kind == "info":
-            await interaction.channel.send(
-                embeds=info_embeds(), files=brand_files("info.webp")
-            )
-        else:
-            banner, desc, view_cls = PANELS[kind]
-            await interaction.channel.send(
-                embed=brand_embed(description=desc, banner=banner),
-                view=view_cls(),
-                files=brand_files(banner),
-            )
+        banner, view_cls = PANELS[kind]
+        await interaction.channel.send(
+            view=view_cls(), files=[panel_file(banner)]
+        )
         await interaction.response.send_message("Panel posted.", ephemeral=True)
 
     @app_commands.command(name="ping", description="Check Portalis latency")

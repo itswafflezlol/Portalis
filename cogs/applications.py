@@ -18,16 +18,33 @@ def review_embed(app: dict, status: str, by: str = "", reason: str = "") -> disc
     return e
 
 
-class ApplyPanelView(discord.ui.View):
+class ApplyPanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
+        ui = discord.ui
 
-    @discord.ui.button(
-        label="Apply to be a Freelancer", style=discord.ButtonStyle.danger,
-        emoji="💼", custom_id="portal:apply_open",
-    )
-    async def open(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ApplicationModal())
+        apply_btn = ui.Button(
+            label="Apply to be a Freelancer", style=discord.ButtonStyle.danger,
+            emoji="💼", custom_id="portal:apply_open",
+        )
+        apply_btn.callback = lambda i: i.response.send_modal(ApplicationModal())
+
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://apply.webp"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 💼 Freelancer\n"
+                "Offer your services through SMP Portal — devs, builders, "
+                "designers, editors and more.\n"
+                "-# Staff review every application — you'll get a DM either way"
+            ),
+            ui.ActionRow(apply_btn),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
 
 
 class ApplicationModal(discord.ui.Modal, title="Freelancer Application"):
