@@ -180,17 +180,18 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
 
     label, blurb = TICKET_TYPES[kind]
     mention, ping_roles, ping_users = user.mention, [], [user]
-    if kind == "paid_ad":
-        payer = guild.get_role(cfg["paid_ads_manager_role_id"])
-        if payer:
-            others = [m for m in payer.members if m != user]
-            ping_users += others
+    if kind in ("paid_ad", "partnership"):
+        mgr = guild.get_role(
+            cfg["paid_ads_manager_role_id"] if kind == "paid_ad"
+            else cfg["partnership_manager_role_id"]
+        )
+        if mgr:
             mention += " " + (
-                " ".join(m.mention for m in payer.members)
-                or payer.mention
+                " ".join(m.mention for m in mgr.members) or mgr.mention
             )
+            ping_users += [m for m in mgr.members if m != user]
         else:
-            mention += " the payment manager"
+            mention += " the manager"
     elif staff:
         ping_roles = [staff]
         mention += f" {staff.mention}"
