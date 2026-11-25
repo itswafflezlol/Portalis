@@ -11,6 +11,7 @@ TOKEN = os.getenv("DISCORD_TOKEN", "")
 DEFAULTS = {
     "guild_id": 0,
     "staff_role_id": 0,
+    "partnership_manager_role_id": 0,
     "freelancer_role_id": 0,
     "partner_role_id": 0,
     "ticket_category_id": 0,

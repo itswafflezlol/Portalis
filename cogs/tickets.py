@@ -112,6 +112,13 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
         overwrites[staff] = discord.PermissionOverwrite(
             view_channel=True, send_messages=True, read_message_history=True,
         )
+    if kind == "partnership":
+        pm = guild.get_role(cfg["partnership_manager_role_id"])
+        if pm:
+            overwrites[pm] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True,
+                read_message_history=True,
+            )
 
     channel = await guild.create_text_channel(
         name=f"{kind}-{user.name}", category=category, overwrites=overwrites,
