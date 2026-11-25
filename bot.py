@@ -42,6 +42,8 @@ class Portalis(commands.Bot):
             guild = discord.Object(id=guild_id)
             self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
         else:
             await self.tree.sync()
 
