@@ -7,16 +7,21 @@ from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
 from cogs.tickets import TicketPanelView
 
+
 def info_embeds() -> list[discord.Embed]:
     info = brand_embed(
-        "SMPPORTAL | PARTNERSHIPS",
-        "Hello valued member(s), in this embed we will cover the requirements "
-        "you must meet to partner with SMP Portal. Please note that your "
-        "partnership process can be put on pause at any moment of partnering.\n\n"
-        "If your server meets these requirements, open a **Partnership** "
-        "ticket. When the bot asks a question, only respond with your "
-        "**final** answer — you can't take back a message. (E.g. don't say "
-        "\"Hi\" or \"Okay\".)",
+        description=(
+            "**🤝 Partnerships**\n"
+            "Hello valued member(s), in this embed we will cover the "
+            "requirements you must meet to partner with SMP Portal. Please "
+            "note that your partnership process can be put on pause at any "
+            "moment of partnering.\n\n"
+            "If your server meets these requirements, open a **Partnership** "
+            "ticket. When the bot asks a question, only respond with your "
+            "**final** answer — you can't take back a message. (E.g. don't "
+            "say \"Hi\" or \"Okay\".)"
+        ),
+        banner="info.webp",
     )
     info.add_field(
         name="Requirements",
@@ -29,21 +34,24 @@ def info_embeds() -> list[discord.Embed]:
         inline=False,
     )
 
-    ads = brand_embed("SMPPORTAL | PAID ADS", "", images=False)
-    ads.set_thumbnail(url="attachment://pfp.webp")
-    ads.description = (
-        "In this embed we will discuss our paid ad conditions and prices. "
-        "Prices are subject to change. If you have any questions, ask a "
-        "Staff Member or Manager.\n\n"
-        "To discuss premium options — role pings, different category "
-        "channels, higher channel order — open a **Partnership** ticket."
+    ads = brand_embed(
+        description=(
+            "**📣 Paid Ads**\n"
+            "In this embed we will discuss our paid ad conditions and "
+            "prices. Prices are subject to change. If you have any "
+            "questions, ask a Staff Member or Manager.\n\n"
+            "To discuss premium options — role pings, different category "
+            "channels, higher channel order — open a **Partnership** ticket."
+        ),
+        images=True, banner=None,
     )
+    ads.set_image(url=None)
     ads.add_field(
         name="Payment Conditions",
         value=(
             "All payments are **final** — zero refunds. Payments are made "
-            "via a payment site sent to you when you open a paid ad ticket. "
-            "Accepts Credit + Debit and PayPal."
+            "via a payment site sent to you when you open a paid ad "
+            "ticket. Accepts Credit + Debit and PayPal."
         ),
         inline=False,
     )
@@ -59,30 +67,35 @@ def info_embeds() -> list[discord.Embed]:
     return [info, ads]
 
 
+# kind -> (banner file, description, view)
 PANELS = {
     "tickets": (
-        "Support Panel",
-        "**Choose a ticket option**\n\n"
-        "🛠️ **Support** — problems you may have, or questions to staff\n"
-        "🤝 **Partnership** — partner with SMP Portal and advertise here\n\n"
+        "tickets.webp",
+        "**🛠️ Support**\n"
+        "Problems or questions for the staff team — open a ticket and "
+        "we'll help.\n\n"
+        "**🤝 Partnership**\n"
+        "Partner with SMP Portal or advertise your server — terms, paid "
+        "ads, and proof.\n\n"
         "• Only 1 ticket open at a time",
         TicketPanelView,
     ),
     "apply": (
-        "Freelancer Applications",
-        "**💼 Become a Freelancer**\n\n"
-        "Sign up to offer your services through SMP Portal — devs, builders, "
+        "apply.webp",
+        "**💼 Freelancer**\n"
+        "Offer your services through SMP Portal — devs, builders, "
         "designers, editors and more.\n\n"
-        "Press the button below and fill out the short application. Staff will "
+        "Press the button and fill the short application; staff will "
         "review it and get back to you.",
         ApplyPanelView,
     ),
     "partner": (
-        "Partner & Advertise",
-        "**📣 Advertise your server**\n\n"
-        "Get your server posted on our Discord and on the SMP Portal website.\n\n"
-        "Press the button below to submit your server — staff will review it "
-        "and your ad goes live once approved.",
+        "partner.webp",
+        "**📣 Partner & Advertise**\n"
+        "Get your server posted on our Discord and on the SMP Portal "
+        "website.\n\n"
+        "Press the button to submit your server — your ad goes live once "
+        "staff approve it.",
         PartnerPanelView,
     ),
 }
@@ -104,14 +117,14 @@ class Admin(commands.Cog):
     async def panel(self, interaction: discord.Interaction, kind: str):
         if kind == "info":
             await interaction.channel.send(
-                embeds=info_embeds(), files=brand_files()
+                embeds=info_embeds(), files=brand_files("info.webp")
             )
         else:
-            title, desc, view_cls = PANELS[kind]
+            banner, desc, view_cls = PANELS[kind]
             await interaction.channel.send(
-                embed=brand_embed(title, desc),
+                embed=brand_embed(description=desc, banner=banner),
                 view=view_cls(),
-                files=brand_files(),
+                files=brand_files(banner),
             )
         await interaction.response.send_message("Panel posted.", ephemeral=True)
 

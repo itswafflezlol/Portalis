@@ -21,26 +21,21 @@ class TicketPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.select(
-        placeholder="SMPPORTAL | Tickets",
-        custom_id="portal:ticket_select",
-        options=[
-            discord.SelectOption(
-                label="Support",
-                value="support",
-                emoji="🛠️",
-                description="Problems or questions for the staff team",
-            ),
-            discord.SelectOption(
-                label="Partnership",
-                value="partnership",
-                emoji="🤝",
-                description="Partner or advertise with SMP Portal",
-            ),
-        ],
+    @discord.ui.button(
+        label="Support Ticket", style=discord.ButtonStyle.danger, emoji="🛠️",
+        custom_id="portal:ticket:support",
     )
-    async def pick(self, interaction: discord.Interaction, select: discord.ui.Select):
-        await open_ticket(interaction, select.values[0])
+    async def support(self, interaction: discord.Interaction,
+                      button: discord.ui.Button):
+        await open_ticket(interaction, "support")
+
+    @discord.ui.button(
+        label="Partnership Ticket", style=discord.ButtonStyle.danger, emoji="🤝",
+        custom_id="portal:ticket:partnership",
+    )
+    async def partnership(self, interaction: discord.Interaction,
+                          button: discord.ui.Button):
+        await open_ticket(interaction, "partnership")
 
 
 async def open_ticket(interaction: discord.Interaction, kind: str):
