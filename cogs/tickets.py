@@ -20,6 +20,21 @@ CATEGORIES = {
 
 PING_RE = re.compile(r"@everyone|@here|<@!?\d+>|<@&\d+>")
 
+INVITE_RE = re.compile(
+    r"(?:discord\.gg|discord\.com/invite|discordapp\.com/invite)/[\w-]+", re.I
+)
+
+BLOCK_RE = re.compile(
+    r"\b(fuck|shit|bitch|bastard|cunt|nigger|nigga|faggot|retard|whore|slut"
+    r"|porn|hentai|nudes?|nsfw|onlyfans|xxx|sex|gore|18\+)\b", re.I
+)
+
+
+def can_review(member: discord.Member, cfg: dict) -> bool:
+    return is_staff(member, cfg) or any(
+        r.id == cfg["partnership_manager_role_id"] for r in member.roles
+    )
+
 
 def is_staff(member: discord.Member, cfg: dict) -> bool:
     return member.guild_permissions.manage_guild or any(
@@ -287,8 +302,11 @@ class PartnershipQuestionsView(discord.ui.LayoutView):
 
 
 class AdModal(discord.ui.Modal, title="Your server ad"):
+    server = discord.ui.TextInput(
+        label="Server name", max_length=100,
+    )
     ad = discord.ui.TextInput(
-        label="Paste your ad — no pings",
+        label="Paste your ad — no pings, must include invite",
         style=discord.TextStyle.paragraph, max_length=4000,
     )
 
@@ -301,6 +319,20 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
                 "Your ad contains a ping — take out `@everyone`, `@here` "
                 "and any user/role mentions, then press **Send your ad** "
                 "again.", ephemeral=True,
+            )
+            return
+        if not INVITE_RE.search(text):
+            await interaction.response.send_message(
+                "Your ad needs a Discord invite link "
+                "(`discord.gg/...`) — add one and send it again.",
+                ephemeral=True,
+            )
+            return
+        if BLOCK_RE.search(text) or BLOCK_RE.search(self.server.value):
+            await interaction.response.send_message(
+                "Your ad contains language or content we don't allow "
+                "(profanity / NSFW terms). Clean it up and send it again.",
+                ephemeral=True,
             )
             return
 
@@ -320,30 +352,154 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
                 "Pick your server type first (question 1).", ephemeral=True
             )
             return
+        if ticket.get("pending_ad"):
+            await interaction.response.send_message(
+                "Your ad is already waiting for staff review.",
+                ephemeral=True,
+            )
+            return
+
+        pending = {"server": self.server.value, "text": text}
+        ticket["pending_ad"] = pending
+        await bot.store.save()
+
+        await interaction.channel.send(
+            view=AdReviewView(
+                interaction.channel.id, pending["server"], pending["text"]
+            )
+        )
+        await interaction.response.send_message(
+            "Ad sent for staff review — it'll go live once a staff member "
+            "or partnership manager confirms it.", ephemeral=True,
+        )
+
+
+class AdReviewView(discord.ui.LayoutView):
+    """Review card posted inside the partnership ticket."""
+
+    def __init__(self, channel_id: int, server: str = "", ad: str = "",
+                 status: str = None, actor: str = "", extra: str = ""):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.channel_id = channel_id
+
+        ok = ui.Button(
+            label="Confirm & Post", style=discord.ButtonStyle.success,
+            emoji="✅", custom_id=f"portal:ad:{channel_id}:ok",
+        )
+        ok.callback = self._approve
+        no = ui.Button(
+            label="Deny", style=discord.ButtonStyle.danger, emoji="✖️",
+            custom_id=f"portal:ad:{channel_id}:no",
+        )
+        no.callback = self._deny
+
+        if status == "approved":
+            ok.disabled = no.disabled = True
+            header = f"## ✅ Ad posted — approved by {actor}\n**{server}**"
+            body = f"{ad}\n-# {extra}"
+        elif status == "denied":
+            ok.disabled = no.disabled = True
+            header = f"## ✖️ Ad denied by {actor}\n**{server}**"
+            body = f"{ad}\n-# Reason: {extra}"
+        else:
+            header = "## 🔍 Ad pending review"
+            body = (
+                f"**Server:** {server}\n\n{ad}\n"
+                "-# Staff / Partnership Manager: confirm to post it to "
+                "the forum, or deny it."
+            )
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(f"{header}\n{body}"),
+            ui.ActionRow(ok, no),
+            accent_color=RED,
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not can_review(interaction.user, interaction.client.cfg):
+            await interaction.response.send_message(
+                "Staff / Partnership Manager only.", ephemeral=True
+            )
+            return False
+        return True
+
+    async def _approve(self, interaction: discord.Interaction):
+        bot = interaction.client
+        ticket = bot.store.data["tickets"].get(str(self.channel_id))
+        pending = ticket and ticket.get("pending_ad")
+        if pending is None:
+            await interaction.response.send_message(
+                "This ad was already handled.", ephemeral=True
+            )
+            return
 
         forum = interaction.guild.get_channel(
             bot.cfg["forum_channels"].get(ticket["category"], 0)
         )
         if forum is None:
             await interaction.response.send_message(
-                "Ads aren't set up yet — missing forum for "
-                f"`{ticket['category']}` in config.json.", ephemeral=True,
+                "Missing forum channel in config.", ephemeral=True
             )
             return
 
-        label, _ = CATEGORIES[ticket["category"]]
         posted = await forum.create_thread(
-            name=f"{interaction.user.display_name} — {label}",
-            content=text,
+            name=pending["server"], content=pending["text"]
         )
         thread = posted.thread
         await thread.edit(locked=True)
         ticket["posted_thread"] = thread.id
+        del ticket["pending_ad"]
         await bot.store.save()
 
-        await interaction.response.send_message(
-            f"📣 Your ad is live: {thread.jump_url}\n"
-            "Staff will review proof of your `@everyone` ping here."
+        await interaction.response.edit_message(
+            view=AdReviewView(
+                self.channel_id, pending["server"], pending["text"],
+                status="approved", actor=interaction.user.mention,
+                extra=f"Live: {thread.jump_url}",
+            )
+        )
+        await interaction.channel.send(
+            f"📣 Ad approved and live: {thread.jump_url}"
+        )
+
+    async def _deny(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(DenyAdModal(self.channel_id))
+
+
+class DenyAdModal(discord.ui.Modal, title="Deny ad"):
+    reason = discord.ui.TextInput(
+        label="Reason (shown in the ticket)",
+        style=discord.TextStyle.paragraph, max_length=300, required=False,
+    )
+
+    def __init__(self, channel_id: int):
+        super().__init__()
+        self.channel_id = channel_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        bot = interaction.client
+        ticket = bot.store.data["tickets"].get(str(self.channel_id))
+        pending = ticket and ticket.get("pending_ad")
+        if pending is None:
+            await interaction.response.send_message(
+                "This ad was already handled.", ephemeral=True
+            )
+            return
+        reason = self.reason.value or "No reason given."
+        del ticket["pending_ad"]
+        await bot.store.save()
+
+        await interaction.response.edit_message(
+            view=AdReviewView(
+                self.channel_id, pending["server"], pending["text"],
+                status="denied", actor=interaction.user.mention,
+                extra=reason,
+            )
+        )
+        await interaction.followup.send(
+            f"Ad denied — {reason}\nThe owner can press **Send your ad** "
+            "again with a fixed version."
         )
 
 
@@ -399,4 +555,10 @@ class Tickets(commands.Cog):
 
 
 async def setup(bot):
+    for cid, t in bot.store.data["tickets"].items():
+        pending = t.get("pending_ad")
+        if pending:
+            bot.add_view(AdReviewView(
+                int(cid), pending["server"], pending["text"]
+            ))
     await bot.add_cog(Tickets(bot))
