@@ -1,5 +1,6 @@
 import io
 import re
+from datetime import datetime, timedelta, timezone
 
 import discord
 from discord.ext import commands
@@ -101,6 +102,17 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
                 f"You already have a ticket open: <#{cid}>", ephemeral=True
             )
             return
+
+    if kind == "partnership" and user.id not in cfg["cooldown_exempt"]:
+        until = store.data.get("partner_cooldowns", {}).get(str(user.id))
+        if until:
+            exp = datetime.fromisoformat(until)
+            if exp > datetime.now(timezone.utc):
+                await interaction.response.send_message(
+                    "You've already partnered recently — you can partner "
+                    f"again <t:{int(exp.timestamp())}:R>.", ephemeral=True,
+                )
+                return
 
     category = guild.get_channel(cfg["ticket_category_id"])
     if category is None:
@@ -450,6 +462,9 @@ class AdReviewView(discord.ui.LayoutView):
         await thread.edit(locked=True)
         ticket["posted_thread"] = thread.id
         del ticket["pending_ad"]
+        bot.store.data.setdefault("partner_cooldowns", {})[
+            str(ticket["owner"])
+        ] = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
         await bot.store.save()
 
         await interaction.response.edit_message(
