@@ -296,10 +296,11 @@ class Giveaways(commands.Cog):
                 "it's in another channel.", ephemeral=True,
             )
             return
-        pool = list(gw["entries"])
+        pool = self._eligible(gw, interaction.guild)
         if not pool:
             await interaction.response.send_message(
-                "No entries to reroll.", ephemeral=True
+                "No eligible entries to reroll — everyone left or "
+                "dropped the tag.", ephemeral=True,
             )
             return
         random.shuffle(pool)
@@ -321,9 +322,23 @@ class Giveaways(commands.Cog):
         except discord.HTTPException:
             pass
 
+    def _eligible(self, gw: dict, guild) -> list:
+        """Entry pool with leavers/tag-removers filtered out."""
+        pool = []
+        for uid in gw["entries"]:
+            member = guild.get_member(uid) if guild else None
+            if member is None:
+                continue
+            if gw["tag_required"] and not has_tag(member, guild.id):
+                continue
+            pool.append(uid)
+        return pool
+
     async def _end(self, gid: str, gw: dict):
         gw["ended"] = True
-        pool = list(gw["entries"])
+        pool = self._eligible(
+            gw, self.bot.get_guild(self.bot.cfg["guild_id"])
+        )
         random.shuffle(pool)
         gw["result"] = pool[:gw["n_winners"]]
         await self._edit_card(gid, gw)
