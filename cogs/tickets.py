@@ -345,7 +345,8 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
                 "again.", ephemeral=True,
             )
             return
-        if not INVITE_RE.search(text):
+        invite_match = INVITE_RE.search(text)
+        if not invite_match:
             await interaction.response.send_message(
                 "Your ad needs a Discord invite link "
                 "(`discord.gg/...`) — add one and send it again.",
@@ -383,7 +384,27 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
             )
             return
 
-        pending = {"server": self.server.value, "text": text, "proof": None}
+        try:
+            invite = await bot.fetch_invite(invite_match.group(0))
+        except (discord.NotFound, discord.HTTPException):
+            await interaction.response.send_message(
+                "That invite link doesn't work — make sure it's a "
+                "permanent invite (`discord.gg/...`) and send it again.",
+                ephemeral=True,
+            )
+            return
+        members = invite.approximate_member_count or 0
+        if members < 25:
+            await interaction.response.send_message(
+                "Partnerships need **25+ members** — that server has "
+                f"~{members}. Come back when it grows! 🌱", ephemeral=True,
+            )
+            return
+
+        pending = {
+            "server": self.server.value, "text": text,
+            "proof": None, "members": members,
+        }
         ticket["pending_ad"] = pending
         await bot.store.save()
 
@@ -399,7 +420,7 @@ class AdReviewView(discord.ui.LayoutView):
 
     def __init__(self, channel_id: int, server: str = "", ad: str = "",
                  proof: str = None, status: str = None, actor: str = "",
-                 extra: str = ""):
+                 extra: str = "", members: int = 0):
         super().__init__(timeout=None)
         ui = discord.ui
         self.channel_id = channel_id
@@ -426,7 +447,9 @@ class AdReviewView(discord.ui.LayoutView):
         else:
             header = "## 🔍 Ad pending review"
             body = (
-                f"**Server:** {server}\n\n{ad}\n\n"
+                f"**Server:** {server}"
+                + (f" · ~{members} members" if members else "")
+                + f"\n\n{ad}\n\n"
                 "**Staff to-do**\n"
                 "• Check out their Discord — make sure it's appropriate "
                 "and follows guidelines\n"
@@ -957,7 +980,7 @@ class Tickets(commands.Cog):
         await message.channel.send(
             view=AdReviewView(
                 message.channel.id, pending["server"], pending["text"],
-                pending["proof"],
+                pending["proof"], members=pending.get("members", 0),
             )
         )
 
@@ -968,6 +991,6 @@ async def setup(bot):
         if pending and pending.get("proof"):
             bot.add_view(AdReviewView(
                 int(cid), pending["server"], pending["text"],
-                pending["proof"],
+                pending["proof"], members=pending.get("members", 0),
             ))
     await bot.add_cog(Tickets(bot))
