@@ -16,9 +16,10 @@ ASSETS = ROOT / "assets"
 OUT = ASSETS / "panels"
 
 W, H = 1400, 480
-FRAMES = 24
-FPS = 12
-PAN = 160  # px of horizontal drift, eased out and back for a clean loop
+FRAMES = 30
+FPS = 15
+DRIFT_X, DRIFT_Y = 200, 110  # ellipse the crop window travels around
+ZOOM = 0.07                  # extra scale at the loop's widest point
 
 WORDS = {
     "tickets": "TICKETS",
@@ -58,9 +59,12 @@ def draw_tracked(draw: ImageDraw.ImageDraw, xy, text: str,
 
 def make(word: str, out: Path):
     bg = Image.open(ASSETS / "banner_bg.jpg").convert("RGB")
-    ratio = max((W + PAN) / bg.width, H / bg.height)
-    bg = bg.resize((int(bg.width * ratio) + PAN,
-                    int(bg.height * ratio)), Image.LANCZOS)
+    # source must cover W/H plus the drift ellipse plus zoom headroom
+    need_w, need_h = (W + 2 * DRIFT_X) * (1 + ZOOM), \
+                     (H + 2 * DRIFT_Y) * (1 + ZOOM)
+    ratio = max(need_w / bg.width, need_h / bg.height)
+    bg = bg.resize((int(bg.width * ratio), int(bg.height * ratio)),
+                   Image.LANCZOS)
 
     dim = ImageEnhance.Brightness(bg).enhance(0.55)
     grad = Image.new("L", (bg.width, 1))
@@ -71,13 +75,21 @@ def make(word: str, out: Path):
 
     logo = circle(Image.open(ASSETS / "pfp.webp"), 84)
     f_big, f_mark = font(160), font(54)
-    y = (dim.height - H) // 2
 
     frames = []
     for f in range(FRAMES):
         t = f / FRAMES
-        x = int((1 - math.cos(2 * math.pi * t)) / 2 * PAN)
-        frame = dim.crop((x, y, x + W, y + H)).convert("RGBA")
+        ang = 2 * math.pi * t
+        scale = 1 + ZOOM * (0.5 - 0.5 * math.cos(ang))
+        sw, sh = int(W * scale), int(H * scale)
+
+        cx = (dim.width - sw) // 2 + int(DRIFT_X * math.cos(ang))
+        cy = (dim.height - sh) // 2 + int(DRIFT_Y * math.sin(ang))
+        cx = max(0, min(cx, dim.width - sw))
+        cy = max(0, min(cy, dim.height - sh))
+
+        frame = dim.crop((cx, cy, cx + sw, cy + sh)) \
+                   .resize((W, H), Image.LANCZOS).convert("RGBA")
         d = ImageDraw.Draw(frame)
         draw_tracked(d, (70, 120), word, f_big)
         frame.alpha_composite(logo, (70, H - 154))

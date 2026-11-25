@@ -14,6 +14,7 @@ from cogs.tickets import (
     TicketChannelView,
     TicketPanelView,
 )
+from cogs.admin import PaidAdsPanelView
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
 
@@ -42,6 +43,7 @@ class Portalis(commands.Bot):
         self.add_view(TicketChannelView())
         self.add_view(PartnershipQuestionsView())
         self.add_view(PaidAdPlanView())
+        self.add_view(PaidAdsPanelView())
         self.add_view(PaymentConfirmView())
         self.add_view(ChannelSetupView())
         self.add_view(NameApprovalView())
