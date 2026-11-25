@@ -17,7 +17,7 @@ def has_tag(member: discord.Member, guild_id: int) -> bool:
     """True if the member wears this guild's server tag."""
     pg = getattr(member, "primary_guild", None)
     return bool(
-        pg and pg.identity_enabled and pg.identity_guild_id == guild_id
+        pg and pg.identity_enabled and pg.id == guild_id
     )
 
 
