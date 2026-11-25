@@ -32,6 +32,7 @@ WORDS = {
     "paidads": "PAID ADS",
     "pings": "PING ME",
     "giveaway": "GIVEAWAY",
+    "server": "WELCOME",
 }
 
 

@@ -38,6 +38,39 @@ class InfoPanelView(discord.ui.LayoutView):
         ))
 
 
+class ServerInfoPanelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://server.gif"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🌐 About SMP Portal\n"
+                "SMP Portal is a community built around Minecraft SMPs "
+                "— find servers to join, promote your own, or get work "
+                "done.\n\n"
+                "**What we offer**\n"
+                "💼 **Commissions** — our freelancers take paid work: "
+                "plugins, builds, graphics, bots, server setups & more. "
+                "Open a ticket to hire, or apply to join the team.\n"
+                "🤝 **Partnerships** — advertise your server in our "
+                "partner forums (25+ members required)\n"
+                "💎 **Paid ads** — your own channel in the Partners "
+                "category, pinned at the top\n"
+                "🎉 **Giveaways & events** — grab the ping roles so you "
+                "never miss one\n\n"
+                "-# Questions? Open a Support ticket — staff are happy "
+                "to help."
+            ),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+
 class PaidAdsPanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
@@ -145,6 +178,7 @@ PANELS = {
     "info": ("info.gif", InfoPanelView),
     "paidads": ("paidads.gif", PaidAdsPanelView),
     "pings": ("pings.gif", PingRolesView),
+    "server": ("server.gif", ServerInfoPanelView),
 }
 
 
@@ -161,6 +195,7 @@ class Admin(commands.Cog):
         app_commands.Choice(name="Partnership info", value="info"),
         app_commands.Choice(name="Paid ads", value="paidads"),
         app_commands.Choice(name="Ping roles", value="pings"),
+        app_commands.Choice(name="Server info", value="server"),
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):
