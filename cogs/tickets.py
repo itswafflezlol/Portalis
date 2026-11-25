@@ -325,10 +325,11 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
             return
 
         label, _ = CATEGORIES[ticket["category"]]
-        thread = await forum.create_thread(
+        posted = await forum.create_thread(
             name=f"{interaction.user.display_name} — {label}",
             content=text,
         )
+        thread = posted.thread
         await thread.edit(locked=True)
         ticket["posted_thread"] = thread.id
         await bot.store.save()

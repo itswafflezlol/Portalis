@@ -74,11 +74,12 @@ class Admin(commands.Cog):
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):
+        await interaction.response.defer(ephemeral=True)
         banner, view_cls = PANELS[kind]
         await interaction.channel.send(
             view=view_cls(), files=[panel_file(banner)]
         )
-        await interaction.response.send_message("Panel posted.", ephemeral=True)
+        await interaction.followup.send("Panel posted.", ephemeral=True)
 
     @app_commands.command(name="ping", description="Check Portalis latency")
     async def ping(self, interaction: discord.Interaction):
