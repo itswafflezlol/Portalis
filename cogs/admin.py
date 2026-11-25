@@ -56,7 +56,7 @@ class PaidAdsPanelView(discord.ui.LayoutView):
             ui.Separator(),
             ui.TextDisplay(
                 "## 💎 Paid Ads\n"
-                "Get a **custom channel** in the partner category — your "
+                "Get a **custom channel** in the Partners category — your "
                 "ad pinned at the top, only you and staff can type.\n\n"
                 "**Prices**\n"
                 "• $10 — one week\n"

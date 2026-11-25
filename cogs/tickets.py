@@ -170,12 +170,23 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     await store.save()
 
     label, blurb = TICKET_TYPES[kind]
-    mention = f"{user.mention}" + (f" {staff.mention}" if staff else "")
+    mention, ping_roles, ping_users = user.mention, [], [user]
+    if kind == "paid_ad":
+        payer = guild.get_role(cfg["paid_ads_manager_role_id"])
+        ping_users += payer.members if payer else []
+        mention += " " + (
+            " ".join(m.mention for m in payer.members)
+            if payer and payer.members
+            else payer.mention if payer else "the payment manager"
+        )
+    elif staff:
+        ping_roles = [staff]
+        mention += f" {staff.mention}"
     await channel.send(
         view=TicketChannelView(kind, mention),
         files=[panel_file(f"{kind}.gif")],
         allowed_mentions=discord.AllowedMentions(
-            users=[user], roles=[staff] if staff else []
+            users=ping_users, roles=ping_roles
         ),
     )
     if kind == "partnership":
@@ -612,7 +623,7 @@ class PaidAdPlanView(discord.ui.LayoutView):
         self.add_item(ui.Container(
             ui.TextDisplay(
                 "## 💎 Custom Channel\n"
-                "Get your own ad channel in the SMP-Partner category — "
+                "Get your own ad channel in the Partners category — "
                 "only you and staff can type in it.\n\n"
                 "**1.** What do you want to pay for?"
             ),
