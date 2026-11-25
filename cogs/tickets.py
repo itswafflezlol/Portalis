@@ -903,7 +903,7 @@ class NameApprovalView(discord.ui.LayoutView):
             overwrites[owner] = discord.PermissionOverwrite(
                 view_channel=True, send_messages=True,
                 read_message_history=True, attach_files=True,
-                embed_links=True,
+                embed_links=True, mention_everyone=False,
             )
         for extra in (staff, pm, payer):
             if extra:
@@ -1148,6 +1148,31 @@ class Tickets(commands.Cog):
             f"{owner.mention} — are you still here? 👀 "
             "Staff is waiting on you.",
             allowed_mentions=discord.AllowedMentions(users=[owner]),
+        )
+
+    @commands.Cog.listener()
+    async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
+        """Catch pings edited into messages in paid channels."""
+        if payload.channel_id not in self.bot.store.data.get(
+            "paid_channels", []
+        ):
+            return
+        content = payload.data.get("content") or ""
+        if not PING_RE.search(content):
+            return
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel is None:
+            return
+        try:
+            msg = await channel.fetch_message(payload.message_id)
+        except discord.HTTPException:
+            return
+        if msg.author.bot:
+            return
+        await msg.delete()
+        await channel.send(
+            f"{msg.author.mention} — no pings allowed here. "
+            "Message deleted.", delete_after=5,
         )
 
     @commands.Cog.listener()
