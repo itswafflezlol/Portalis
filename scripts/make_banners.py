@@ -20,6 +20,8 @@ WORDS = {
     "apply": "FREELANCE",
     "partner": "PARTNERS",
     "info": "INFO",
+    "paid_ad": "PAID AD",
+    "paidads": "PAID ADS",
 }
 
 

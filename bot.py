@@ -6,7 +6,11 @@ from discord.ext import commands
 from config import TOKEN, load_config
 from storage import Store
 from cogs.tickets import (
+    ChannelSetupView,
+    NameApprovalView,
+    PaidAdPlanView,
     PartnershipQuestionsView,
+    PaymentConfirmView,
     TicketChannelView,
     TicketPanelView,
 )
@@ -37,6 +41,10 @@ class Portalis(commands.Bot):
         self.add_view(TicketPanelView())
         self.add_view(TicketChannelView())
         self.add_view(PartnershipQuestionsView())
+        self.add_view(PaidAdPlanView())
+        self.add_view(PaymentConfirmView())
+        self.add_view(ChannelSetupView())
+        self.add_view(NameApprovalView())
         self.add_view(ApplyPanelView())
         self.add_view(PartnerPanelView())
 

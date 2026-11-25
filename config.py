@@ -19,6 +19,9 @@ DEFAULTS = {
     "applications_channel_id": 0,
     "forum_channels": {"public": 0, "bedrock": 0, "smps": 0, "other": 0},
     "cooldown_exempt": [],
+    "paid_ads_manager_id": 0,
+    "paid_category_id": 0,
+    "kofi_link": "https://ko-fi.com/REPLACE-ME",
 }
 
 CONFIG_PATH = Path("config.json")

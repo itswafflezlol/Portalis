@@ -5,7 +5,7 @@ from discord.ext import commands
 from branding import RED, panel_file
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
-from cogs.tickets import TicketPanelView
+from cogs.tickets import TicketPanelView, open_ticket
 
 
 class InfoPanelView(discord.ui.LayoutView):
@@ -33,18 +33,37 @@ class InfoPanelView(discord.ui.LayoutView):
                 "\"Okay\")."
             ),
             ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+
+class PaidAdsPanelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        buy = ui.Button(
+            label="Get a custom channel", style=discord.ButtonStyle.danger,
+            emoji="💎", custom_id="portal:paidads_open",
+        )
+        buy.callback = lambda i: open_ticket(i, "paid_ad")
+
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://paidads.webp"
+            )),
+            ui.Separator(),
             ui.TextDisplay(
-                "## 📣 Paid Ads\n"
-                "All payments are **final** — zero refunds. Payment is "
-                "made via a site sent to you when you open a paid ad "
-                "ticket, accepting Credit + Debit and PayPal.\n\n"
+                "## 💎 Paid Ads\n"
+                "Get a **custom channel** in the partner category — your "
+                "ad pinned at the top, only you and staff can type.\n\n"
                 "**Prices**\n"
-                "**Custom channel** in the SMP-Partner category\n"
                 "• $10 — one week\n"
                 "• $25 — one month\n"
-                "-# Premium options — role pings, other categories, "
-                "higher channel order: open a Partnership ticket."
+                "-# Payments via Ko-fi, final — no refunds."
             ),
+            ui.ActionRow(buy),
             ui.Separator(),
             ui.TextDisplay("-# SMP Portal · Official Discord"),
             accent_color=RED,
@@ -57,6 +76,7 @@ PANELS = {
     "apply": ("apply.webp", ApplyPanelView),
     "partner": ("partner.webp", PartnerPanelView),
     "info": ("info.webp", InfoPanelView),
+    "paidads": ("paidads.webp", PaidAdsPanelView),
 }
 
 
@@ -70,7 +90,8 @@ class Admin(commands.Cog):
         app_commands.Choice(name="Tickets", value="tickets"),
         app_commands.Choice(name="Freelancer applications", value="apply"),
         app_commands.Choice(name="Partner / advertise", value="partner"),
-        app_commands.Choice(name="Partnership info & paid ads", value="info"),
+        app_commands.Choice(name="Partnership info", value="info"),
+        app_commands.Choice(name="Paid ads", value="paidads"),
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):

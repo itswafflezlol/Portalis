@@ -10,7 +10,10 @@ from branding import RED, panel_file
 TICKET_TYPES = {
     "support": ("🛠️ Support", "Problems or questions for the staff team."),
     "partnership": ("🤝 Partnership", "Partner or advertise with SMP Portal."),
+    "paid_ad": ("💎 Paid Ad", "Buy a custom ad channel for your server."),
 }
+
+PLANS = {"1w": ("1 Week", "$10"), "1m": ("1 Month", "$25")}
 
 CATEGORIES = {
     "public": ("Public", "🌍"),
@@ -146,6 +149,13 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
                 view_channel=True, send_messages=True,
                 read_message_history=True,
             )
+    if kind == "paid_ad":
+        payer = guild.get_member(cfg["paid_ads_manager_id"])
+        if payer:
+            overwrites[payer] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True,
+                read_message_history=True,
+            )
 
     channel = await guild.create_text_channel(
         name=f"{kind}-{user.name}", category=category, overwrites=overwrites,
@@ -166,6 +176,8 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     )
     if kind == "partnership":
         await channel.send(view=PartnershipQuestionsView())
+    elif kind == "paid_ad":
+        await channel.send(view=PaidAdPlanView())
     await interaction.followup.send(
         f"Ticket opened: {channel.mention}", ephemeral=True
     )
@@ -523,6 +535,336 @@ class DenyAdModal(discord.ui.Modal, title="Deny ad"):
         )
 
 
+def _slugify(name: str) -> str:
+    s = re.sub(r"[^a-z0-9\-_]", "", name.lower().replace(" ", "-"))
+    return s or "channel"
+
+
+class PaidAdPlanView(discord.ui.LayoutView):
+    """First message in paid-ad tickets: pick a plan."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        sel = ui.Select(
+            placeholder="What do you want to pay for?",
+            custom_id="portal:paid:plan",
+            options=[
+                discord.SelectOption(label="1 Week — $10", value="1w",
+                                     emoji="📅"),
+                discord.SelectOption(label="1 Month — $25", value="1m",
+                                     emoji="🗓️"),
+            ],
+        )
+        sel.callback = self._pick
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 💎 Custom Channel\n"
+                "Get your own ad channel in the SMP-Partner category — "
+                "only you and staff can type in it.\n\n"
+                "**1.** What do you want to pay for?"
+            ),
+            ui.ActionRow(sel),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+    async def _pick(self, interaction: discord.Interaction):
+        bot = interaction.client
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        if ticket is None or ticket["type"] != "paid_ad":
+            await interaction.response.send_message(
+                "This isn't a paid ad ticket.", ephemeral=True
+            )
+            return
+        if interaction.user.id != ticket["owner"]:
+            await interaction.response.send_message(
+                "Only the ticket owner picks this.", ephemeral=True
+            )
+            return
+
+        plan = interaction.data["values"][0]
+        ticket["plan"] = plan
+        await bot.store.save()
+        label, price = PLANS[plan]
+
+        payer = interaction.guild.get_member(
+            bot.cfg["paid_ads_manager_id"]
+        )
+        await interaction.response.send_message(
+            f"Plan: **{label} ({price})**"
+        )
+        await interaction.channel.send(view=PaymentConfirmView(
+            label, price, bot.cfg["kofi_link"],
+            payer.mention if payer else "the payment manager",
+        ))
+
+
+class PaymentConfirmView(discord.ui.LayoutView):
+    """Ko-fi link + confirm button for the payment manager."""
+
+    def __init__(self, label: str = "", price: str = "", link: str = "",
+                 payer: str = ""):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        confirm = ui.Button(
+            label="Confirm payment received", style=discord.ButtonStyle.success,
+            emoji="💰", custom_id="portal:paid:confirm",
+        )
+        confirm.callback = self._confirm
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 💳 Payment\n"
+                f"Pay **{price} — {label}** here:\n{link}\n\n"
+                f"{payer} press **Confirm payment** once the payment "
+                "arrives.\n"
+                "-# Payments are final — no refunds."
+            ),
+            ui.ActionRow(confirm),
+            accent_color=RED,
+        ))
+
+    async def _confirm(self, interaction: discord.Interaction):
+        bot = interaction.client
+        if interaction.user.id != bot.cfg["paid_ads_manager_id"]:
+            await interaction.response.send_message(
+                "Only the payment manager confirms payments.",
+                ephemeral=True,
+            )
+            return
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        if ticket is None or ticket["type"] != "paid_ad":
+            await interaction.response.send_message(
+                "This isn't a paid ad ticket.", ephemeral=True
+            )
+            return
+        if ticket.get("paid_confirmed"):
+            await interaction.response.send_message(
+                "Payment already confirmed.", ephemeral=True
+            )
+            return
+        ticket["paid_confirmed"] = True
+        await bot.store.save()
+
+        owner = interaction.guild.get_member(ticket["owner"])
+        await interaction.response.send_message("✅ Payment confirmed.")
+        await interaction.channel.send(view=ChannelSetupView(
+            owner.mention if owner else "the buyer"
+        ))
+
+
+class ChannelSetupView(discord.ui.LayoutView):
+    """Guidelines + emoji/name picker after payment."""
+
+    def __init__(self, opener: str = ""):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        setup_btn = ui.Button(
+            label="Choose emoji & name", style=discord.ButtonStyle.danger,
+            emoji="🏷️", custom_id="portal:paid:setup",
+        )
+        setup_btn.callback = lambda i: i.response.send_modal(
+            ChannelNameModal()
+        )
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 🏷️ Your channel\n"
+                f"{opener} — payment confirmed ✅\n\n"
+                "**Channel guidelines**\n"
+                "• Do **not** ping `@everyone`, `@here`, or anyone — "
+                "messages with pings get **deleted**\n"
+                "• Only you and staff can type in your channel\n\n"
+                "Press the button to pick your channel emoji and name."
+            ),
+            ui.ActionRow(setup_btn),
+            accent_color=RED,
+        ))
+
+
+class ChannelNameModal(discord.ui.Modal, title="Channel emoji & name"):
+    emoji = discord.ui.TextInput(
+        label="Channel emoji", placeholder="e.g. 🔥", max_length=30,
+    )
+    name = discord.ui.TextInput(
+        label="Channel name", placeholder="e.g. my-smp", max_length=30,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        bot = interaction.client
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        if ticket is None or ticket["type"] != "paid_ad":
+            await interaction.response.send_message(
+                "This isn't a paid ad ticket.", ephemeral=True
+            )
+            return
+        if interaction.user.id != ticket["owner"]:
+            await interaction.response.send_message(
+                "Only the ticket owner picks this.", ephemeral=True
+            )
+            return
+
+        ticket["pending_channel"] = {
+            "emoji": self.emoji.value.strip(),
+            "name": self.name.value.strip(),
+        }
+        await bot.store.save()
+
+        payer = interaction.guild.get_member(bot.cfg["paid_ads_manager_id"])
+        owner = interaction.user.mention
+        await interaction.channel.send(view=NameApprovalView(
+            self.emoji.value.strip(), self.name.value.strip(), owner,
+            payer.mention if payer else "the payment manager",
+        ))
+        await interaction.response.send_message(
+            "Sent for approval.", ephemeral=True
+        )
+
+
+class NameApprovalView(discord.ui.LayoutView):
+    """Payment manager approves the emoji + channel name."""
+
+    def __init__(self, emoji: str = "", name: str = "", opener: str = "",
+                 payer: str = "", status: str = None,
+                 actor: str = "", extra: str = ""):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        ok = ui.Button(
+            label="Approve", style=discord.ButtonStyle.success, emoji="✅",
+            custom_id="portal:paid:nameok",
+        )
+        ok.callback = self._approve
+        no = ui.Button(
+            label="Reject", style=discord.ButtonStyle.danger, emoji="✖️",
+            custom_id="portal:paid:nameno",
+        )
+        no.callback = self._deny
+
+        if status == "approved":
+            ok.disabled = no.disabled = True
+            header = f"## ✅ Channel approved by {actor}"
+            body = f"**{emoji}・{name}**\n-# {extra}"
+        elif status == "denied":
+            ok.disabled = no.disabled = True
+            header = f"## ✖️ Channel rejected by {actor}"
+            body = f"**{emoji}・{name}**\n-# {extra}"
+        else:
+            header = "## 🏷️ Channel name approval"
+            body = (
+                f"**{emoji}・{name}**\nFor {opener}\n"
+                f"-# {payer} — approve to create the channel."
+            )
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(f"{header}\n{body}"),
+            ui.ActionRow(ok, no),
+            accent_color=RED,
+        ))
+
+    async def _check(self, interaction: discord.Interaction):
+        bot = interaction.client
+        if interaction.user.id != bot.cfg["paid_ads_manager_id"]:
+            await interaction.response.send_message(
+                "Only the payment manager approves names.", ephemeral=True
+            )
+            return None
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        pending = ticket and ticket.get("pending_channel")
+        if pending is None:
+            await interaction.response.send_message(
+                "This was already handled.", ephemeral=True
+            )
+            return None
+        return ticket, pending
+
+    async def _approve(self, interaction: discord.Interaction):
+        got = await self._check(interaction)
+        if got is None:
+            return
+        bot = interaction.client
+        ticket, pending = got
+        guild = interaction.guild
+
+        emoji, name = pending["emoji"], _slugify(pending["name"])
+        category = guild.get_channel(bot.cfg["paid_category_id"])
+        if category is None:
+            await interaction.response.send_message(
+                "Missing `paid_category_id` in config.", ephemeral=True
+            )
+            return
+
+        owner = guild.get_member(ticket["owner"])
+        staff = guild.get_role(bot.cfg["staff_role_id"])
+        pm = guild.get_role(bot.cfg["partnership_manager_role_id"])
+        payer = guild.get_member(bot.cfg["paid_ads_manager_id"])
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(
+                view_channel=True, send_messages=False,
+            ),
+            guild.me: discord.PermissionOverwrite(
+                view_channel=True, send_messages=True,
+                manage_messages=True, manage_channels=True,
+            ),
+        }
+        if owner:
+            overwrites[owner] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True,
+                read_message_history=True, attach_files=True,
+                embed_links=True,
+            )
+        for extra in (staff, pm, payer):
+            if extra:
+                overwrites[extra] = discord.PermissionOverwrite(
+                    view_channel=True, send_messages=True,
+                    read_message_history=True,
+                )
+
+        channel = await guild.create_text_channel(
+            name=f"{emoji}・{name}", category=category, overwrites=overwrites,
+        )
+        bot.store.data.setdefault("paid_channels", []).append(channel.id)
+        ticket["paid_channel"] = channel.id
+        del ticket["pending_channel"]
+        await bot.store.save()
+
+        await interaction.response.edit_message(
+            view=NameApprovalView(
+                emoji, name, status="approved",
+                actor=interaction.user.mention,
+                extra=f"Created: {channel.mention}",
+            )
+        )
+        await interaction.channel.send(
+            f"💎 {channel.mention} is live — post your ad, "
+            f"{owner.mention if owner else 'buyer'}. No pings allowed."
+        )
+
+    async def _deny(self, interaction: discord.Interaction):
+        got = await self._check(interaction)
+        if got is None:
+            return
+        bot = interaction.client
+        ticket, pending = got
+        del ticket["pending_channel"]
+        await bot.store.save()
+
+        await interaction.response.edit_message(
+            view=NameApprovalView(
+                pending["emoji"], pending["name"], status="denied",
+                actor=interaction.user.mention,
+                extra="Press **Choose emoji & name** to try again.",
+            )
+        )
+
+
 class ConfirmCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=60)
@@ -577,6 +919,18 @@ class Tickets(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.guild is None:
             return
+
+        if message.channel.id in self.bot.store.data.get(
+            "paid_channels", []
+        ):
+            if PING_RE.search(message.content):
+                await message.delete()
+                await message.channel.send(
+                    f"{message.author.mention} — no pings allowed here. "
+                    "Message deleted."
+                )
+            return
+
         ticket = self.bot.store.data["tickets"].get(str(message.channel.id))
         if not ticket or ticket["type"] != "partnership":
             return
