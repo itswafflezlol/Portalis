@@ -493,6 +493,7 @@ class AdReviewView(discord.ui.LayoutView):
             )
             return
 
+        review_msgs = pending.get("review_msgs", [])
         posted = await forum.create_thread(
             name=pending["server"], content=pending["text"]
         )
@@ -505,20 +506,36 @@ class AdReviewView(discord.ui.LayoutView):
         ] = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
         await bot.store.save()
 
-        await interaction.response.edit_message(
-            view=AdReviewView(
-                self.channel_id, pending["server"], pending["text"],
-                proof=pending.get("proof"),
-                status="approved", actor=interaction.user.mention,
-                extra=f"Live: {thread.jump_url}",
-            )
+        done = AdReviewView(
+            self.channel_id, pending["server"], pending["text"],
+            proof=pending.get("proof"),
+            status="approved", actor=interaction.user.display_name,
+            extra=f"Live: {thread.jump_url}",
         )
-        await interaction.channel.send(
-            f"📣 Ad approved and live: {thread.jump_url}"
+        await interaction.response.edit_message(view=done)
+        await _sync_review_cards(
+            bot, interaction.guild, review_msgs, done,
+            skip=interaction.message.id,
         )
+        ticket_ch = bot.get_channel(self.channel_id) \
+            or await bot.fetch_channel(self.channel_id)
+        await ticket_ch.send(f"📣 Ad approved and live: {thread.jump_url}")
 
     async def _deny(self, interaction: discord.Interaction):
         await interaction.response.send_modal(DenyAdModal(self.channel_id))
+
+
+async def _sync_review_cards(bot, guild, msgs, view, skip):
+    """Edit every posted copy of a review card except the one clicked."""
+    for cid, mid in msgs:
+        if mid == skip:
+            continue
+        try:
+            ch = guild.get_channel(cid) or await bot.fetch_channel(cid)
+            msg = await ch.fetch_message(mid)
+            await msg.edit(view=view)
+        except discord.HTTPException:
+            pass
 
 
 class DenyAdModal(discord.ui.Modal, title="Deny ad"):
@@ -541,18 +558,24 @@ class DenyAdModal(discord.ui.Modal, title="Deny ad"):
             )
             return
         reason = self.reason.value or "No reason given."
+        review_msgs = pending.get("review_msgs", [])
         del ticket["pending_ad"]
         await bot.store.save()
 
-        await interaction.response.edit_message(
-            view=AdReviewView(
-                self.channel_id, pending["server"], pending["text"],
-                proof=pending.get("proof"),
-                status="denied", actor=interaction.user.mention,
-                extra=reason,
-            )
+        done = AdReviewView(
+            self.channel_id, pending["server"], pending["text"],
+            proof=pending.get("proof"),
+            status="denied", actor=interaction.user.display_name,
+            extra=reason,
         )
-        await interaction.followup.send(
+        await interaction.response.edit_message(view=done)
+        await _sync_review_cards(
+            bot, interaction.guild, review_msgs, done,
+            skip=interaction.message.id,
+        )
+        ticket_ch = bot.get_channel(self.channel_id) \
+            or await bot.fetch_channel(self.channel_id)
+        await ticket_ch.send(
             f"Ad denied — {reason}\nThe owner can press **Send your ad** "
             "again with a fixed version."
         )
@@ -904,6 +927,31 @@ class ConfirmCloseView(discord.ui.View):
         await interaction.response.edit_message(content="Cancelled.", view=None)
 
 
+def _cv2_text(components):
+    for c in components:
+        content = getattr(c, "content", None)
+        if isinstance(content, str) and content:
+            yield content
+        url = getattr(getattr(c, "media", None), "url", None)
+        if url:
+            yield f"[media: {url}]"
+        for item in getattr(c, "items", None) or []:
+            iurl = getattr(getattr(item, "media", None), "url", None)
+            if iurl:
+                yield f"[media: {iurl}]"
+        yield from _cv2_text(getattr(c, "children", None) or [])
+
+
+def _transcript_line(m: discord.Message) -> str:
+    parts = [m.content] if m.content else []
+    parts += [f"[{a.filename}]({a.url})" for a in m.attachments]
+    parts += [f"[embed: {e.title or 'untitled'}]" for e in m.embeds]
+    parts += [f"[sticker: {s.name}]" for s in m.stickers]
+    parts += _cv2_text(m.components)
+    body = " | ".join(parts) or "(no text)"
+    return f"[{m.created_at:%Y-%m-%d %H:%M}] {m.author}: {body}"
+
+
 async def close_ticket(interaction: discord.Interaction):
     bot, channel, guild = interaction.client, interaction.channel, interaction.guild
     ticket = bot.store.data["tickets"].pop(str(channel.id), None)
@@ -912,7 +960,7 @@ async def close_ticket(interaction: discord.Interaction):
     log = guild.get_channel(bot.cfg["ticket_log_channel_id"])
     if log is not None:
         lines = [
-            f"[{m.created_at:%Y-%m-%d %H:%M}] {m.author}: {m.content}"
+            _transcript_line(m)
             async for m in channel.history(limit=None, oldest_first=True)
         ]
         transcript = discord.File(
@@ -976,13 +1024,23 @@ class Tickets(commands.Cog):
             return
 
         pending["proof"] = image.url
-        await self.bot.store.save()
-        await message.channel.send(
-            view=AdReviewView(
-                message.channel.id, pending["server"], pending["text"],
-                pending["proof"], members=pending.get("members", 0),
-            )
+        view = AdReviewView(
+            message.channel.id, pending["server"], pending["text"],
+            pending["proof"], members=pending.get("members", 0),
         )
+        card = await message.channel.send(view=view)
+        pending["review_msgs"] = [[message.channel.id, card.id]]
+
+        review_ch = message.guild.get_channel(
+            self.bot.cfg.get("partners_channel_id", 0)
+        )
+        if review_ch is not None:
+            mirror = await review_ch.send(
+                view=view,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            pending["review_msgs"].append([review_ch.id, mirror.id])
+        await self.bot.store.save()
 
 
 async def setup(bot):
