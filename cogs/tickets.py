@@ -1231,6 +1231,117 @@ class Tickets(commands.Cog):
             allowed_mentions=discord.AllowedMentions(users=[owner]),
         )
 
+    async def _paid_guard(self, interaction: discord.Interaction):
+        """Payment-manager + paid-channel check for paid ad commands."""
+        if interaction.user.get_role(
+            self.bot.cfg["paid_ads_manager_role_id"]
+        ) is None:
+            await interaction.response.send_message(
+                "Payment manager only.", ephemeral=True
+            )
+            return False
+        if interaction.channel.id not in self.bot.store.data.get(
+            "paid_channels", []
+        ):
+            await interaction.response.send_message(
+                "Use this inside a paid ad channel.", ephemeral=True
+            )
+            return False
+        return True
+
+    def _paid_owner(self, cid: int):
+        for t in self.bot.store.data["tickets"].values():
+            if t.get("paid_channel") == cid:
+                return t["owner"]
+        return None
+
+    @app_commands.command(
+        name="cancelpaid",
+        description="Cancel this paid ad — deletes the channel now",
+    )
+    async def cancelpaid(self, interaction: discord.Interaction):
+        if not await self._paid_guard(interaction):
+            return
+        store = self.bot.store
+        cid, name = interaction.channel.id, interaction.channel.name
+
+        store.data.get("paid_channel_expiry", {}).pop(str(cid), None)
+        if cid in store.data.get("paid_channels", []):
+            store.data["paid_channels"].remove(cid)
+        owner_id = self._paid_owner(cid)
+        for t in store.data["tickets"].values():
+            if t.get("paid_channel") == cid:
+                t.pop("paid_channel", None)
+        await store.save()
+
+        await interaction.response.send_message(
+            "🗑️ Cancelling — deleting channel…"
+        )
+        log = interaction.guild.get_channel(
+            self.bot.cfg["ticket_log_channel_id"]
+        )
+        if log is not None:
+            await log.send(
+                f"🗑️ Paid ad channel `{name}` cancelled by "
+                f"{interaction.user.mention}."
+            )
+        member = interaction.guild.get_member(owner_id) if owner_id else None
+        if member is not None:
+            try:
+                await member.send(
+                    f"Your paid ad channel **{name}** in **SMP Portal** "
+                    "was cancelled by staff."
+                )
+            except discord.HTTPException:
+                pass
+        await interaction.channel.delete(
+            reason=f"Paid ad cancelled by {interaction.user}"
+        )
+
+    @app_commands.command(
+        name="extendpaid",
+        description="Extend this paid ad channel by N days",
+    )
+    @app_commands.describe(days="How many days to add")
+    async def extendpaid(self, interaction: discord.Interaction,
+                       days: int):
+        if not await self._paid_guard(interaction):
+            return
+        if not 1 <= days <= 365:
+            await interaction.response.send_message(
+                "Days must be 1–365.", ephemeral=True
+            )
+            return
+
+        store = self.bot.store
+        cid = str(interaction.channel.id)
+        expiry = store.data.setdefault("paid_channel_expiry", {})
+        now = datetime.now(timezone.utc)
+        base = (
+            datetime.fromisoformat(expiry[cid])
+            if cid in expiry else now
+        )
+        new = max(base, now) + timedelta(days=days)
+        expiry[cid] = new.isoformat()
+        await store.save()
+
+        ts = int(new.timestamp())
+        await interaction.response.send_message(
+            f"✅ Extended **{days}** day(s) — now expires "
+            f"<t:{ts}:F> (<t:{ts}:R>)."
+        )
+        owner_id = self._paid_owner(interaction.channel.id)
+        member = interaction.guild.get_member(owner_id) if owner_id else None
+        if member is not None:
+            try:
+                await member.send(
+                    f"📅 Your paid ad channel **{interaction.channel.name}** "
+                    f"in **SMP Portal** was extended — new expiry "
+                    f"<t:{ts}:F> (<t:{ts}:R>)."
+                )
+            except discord.HTTPException:
+                pass
+
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
         """Catch pings edited into messages in paid channels."""
