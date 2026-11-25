@@ -18,7 +18,7 @@ class PartnerPanelView(discord.ui.LayoutView):
 
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
-                "attachment://partner.webp"
+                "attachment://partner.gif"
             )),
             ui.Separator(),
             ui.TextDisplay(

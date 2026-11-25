@@ -64,7 +64,7 @@ class TicketPanelView(discord.ui.LayoutView):
 
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
-                "attachment://tickets.webp"
+                "attachment://tickets.gif"
             )),
             ui.Separator(),
             ui.TextDisplay(
@@ -169,7 +169,7 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     mention = f"{user.mention}" + (f" {staff.mention}" if staff else "")
     await channel.send(
         view=TicketChannelView(kind, mention),
-        files=[panel_file(f"{kind}.webp")],
+        files=[panel_file(f"{kind}.gif")],
         allowed_mentions=discord.AllowedMentions(
             users=[user], roles=[staff] if staff else []
         ),
@@ -205,7 +205,7 @@ class TicketChannelView(discord.ui.LayoutView):
 
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
-                f"attachment://{kind}.webp"
+                f"attachment://{kind}.gif"
             )),
             ui.Separator(),
             ui.TextDisplay(

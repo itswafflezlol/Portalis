@@ -31,7 +31,7 @@ class ApplyPanelView(discord.ui.LayoutView):
 
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
-                "attachment://apply.webp"
+                "attachment://apply.gif"
             )),
             ui.Separator(),
             ui.TextDisplay(

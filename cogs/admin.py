@@ -14,7 +14,7 @@ class InfoPanelView(discord.ui.LayoutView):
         ui = discord.ui
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
-                "attachment://info.webp"
+                "attachment://info.gif"
             )),
             ui.Separator(),
             ui.TextDisplay(
@@ -51,7 +51,7 @@ class PaidAdsPanelView(discord.ui.LayoutView):
 
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
-                "attachment://paidads.webp"
+                "attachment://paidads.gif"
             )),
             ui.Separator(),
             ui.TextDisplay(
@@ -72,11 +72,11 @@ class PaidAdsPanelView(discord.ui.LayoutView):
 
 # kind -> (banner file, view class)
 PANELS = {
-    "tickets": ("tickets.webp", TicketPanelView),
-    "apply": ("apply.webp", ApplyPanelView),
-    "partner": ("partner.webp", PartnerPanelView),
-    "info": ("info.webp", InfoPanelView),
-    "paidads": ("paidads.webp", PaidAdsPanelView),
+    "tickets": ("tickets.gif", TicketPanelView),
+    "apply": ("apply.gif", ApplyPanelView),
+    "partner": ("partner.gif", PartnerPanelView),
+    "info": ("info.gif", InfoPanelView),
+    "paidads": ("paidads.gif", PaidAdsPanelView),
 }
 
 
