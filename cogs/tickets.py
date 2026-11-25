@@ -186,10 +186,8 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
             else cfg["partnership_manager_role_id"]
         )
         if mgr:
-            mention += " " + (
-                " ".join(m.mention for m in mgr.members) or mgr.mention
-            )
-            ping_users += [m for m in mgr.members if m != user]
+            mention += f" {mgr.mention}"
+            ping_roles = [mgr]
         else:
             mention += " the manager"
     elif staff:
@@ -670,11 +668,7 @@ class PaidAdPlanView(discord.ui.LayoutView):
         payer = interaction.guild.get_role(
             bot.cfg["paid_ads_manager_role_id"]
         )
-        # ping the role's members directly — bots can't ping
-        # unmentionable roles otherwise
-        payer_txt = (
-            " ".join(m.mention for m in payer.members) or payer.mention
-        ) if payer else "the payment manager"
+        payer_txt = payer.mention if payer else "the payment manager"
         await interaction.response.send_message(
             f"Plan: **{label} ({price})**"
         )
@@ -807,9 +801,7 @@ class ChannelNameModal(discord.ui.Modal, title="Channel emoji & name"):
         payer = interaction.guild.get_role(
             bot.cfg["paid_ads_manager_role_id"]
         )
-        payer_txt = (
-            " ".join(m.mention for m in payer.members) or payer.mention
-        ) if payer else "the payment manager"
+        payer_txt = payer.mention if payer else "the payment manager"
         owner = interaction.user.mention
         await interaction.channel.send(view=NameApprovalView(
             self.emoji.value.strip(), self.name.value.strip(), owner,
