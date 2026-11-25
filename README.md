@@ -37,6 +37,10 @@ on boot.
    copy config.example.json config.json
    ```
 
+   Set `DATABASE_URL` in `.env` to your host's Postgres connection string —
+   the bot creates its table automatically. If unset, data falls back to
+   `data/data.json`.
+
 5. Fill in `config.json` with your server's IDs (right-click → Copy Channel/Role ID
    with Developer Mode on):
 

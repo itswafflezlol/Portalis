@@ -53,7 +53,7 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     for cid in stale:
         del store.data["tickets"][cid]
     if stale:
-        store.save()
+        await store.save()
 
     for cid, t in store.data["tickets"].items():
         if t["owner"] == user.id:
@@ -94,7 +94,7 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     store.data["tickets"][str(channel.id)] = {
         "owner": user.id, "type": kind, "claimed_by": None,
     }
-    store.save()
+    await store.save()
 
     label, blurb = TICKET_TYPES[kind]
     embed = brand_embed(
@@ -135,7 +135,7 @@ class TicketControlsView(discord.ui.View):
             )
             return
         ticket["claimed_by"] = interaction.user.id
-        bot.store.save()
+        await bot.store.save()
         button.disabled = True
         await interaction.message.edit(view=self)
         await interaction.response.send_message(
@@ -185,7 +185,7 @@ class ConfirmCloseView(discord.ui.View):
 async def close_ticket(interaction: discord.Interaction):
     bot, channel, guild = interaction.client, interaction.channel, interaction.guild
     ticket = bot.store.data["tickets"].pop(str(channel.id), None)
-    bot.store.save()
+    await bot.store.save()
 
     log = guild.get_channel(bot.cfg["ticket_log_channel_id"])
     if log is not None:

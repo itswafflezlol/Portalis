@@ -27,6 +27,8 @@ class Portalis(commands.Bot):
         self.store = Store()
 
     async def setup_hook(self):
+        await self.store.connect()
+
         self.add_view(TicketPanelView())
         self.add_view(TicketControlsView())
         self.add_view(ApplyPanelView())

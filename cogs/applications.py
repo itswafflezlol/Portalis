@@ -62,7 +62,7 @@ class ApplicationModal(discord.ui.Modal, title="Freelancer Application"):
             return
 
         app = {
-            "id": bot.store.new_id(),
+            "id": await bot.store.new_id(),
             "user_id": interaction.user.id,
             "service": self.service.value,
             "portfolio": self.portfolio.value,
@@ -71,7 +71,7 @@ class ApplicationModal(discord.ui.Modal, title="Freelancer Application"):
             "status": "pending",
         }
         bot.store.data["applications"][str(app["id"])] = app
-        bot.store.save()
+        await bot.store.save()
 
         await channel.send(
             embed=review_embed(app, "Pending"),
@@ -108,7 +108,7 @@ async def decide(interaction: discord.Interaction, app_id: int,
         return
 
     app["status"] = "accepted" if approved else "denied"
-    bot.store.save()
+    await bot.store.save()
 
     user = interaction.guild.get_member(app["user_id"])
     if approved:

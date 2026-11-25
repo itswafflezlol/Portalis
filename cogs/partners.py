@@ -58,7 +58,7 @@ class PartnerModal(discord.ui.Modal, title="Partner / Advertise with us"):
             return
 
         req = {
-            "id": bot.store.new_id(),
+            "id": await bot.store.new_id(),
             "user_id": interaction.user.id,
             "server": self.server.value,
             "invite": self.invite.value,
@@ -67,7 +67,7 @@ class PartnerModal(discord.ui.Modal, title="Partner / Advertise with us"):
             "status": "pending",
         }
         bot.store.data["partners"][str(req["id"])] = req
-        bot.store.save()
+        await bot.store.save()
 
         await channel.send(
             embed=review_embed(req, "Pending"), view=PartnerReviewView(req["id"]),
@@ -103,7 +103,7 @@ async def decide(interaction: discord.Interaction, req_id: int,
         return
 
     req["status"] = "accepted" if approved else "denied"
-    bot.store.save()
+    await bot.store.save()
 
     user = interaction.guild.get_member(req["user_id"])
     if approved:
