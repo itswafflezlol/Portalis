@@ -893,6 +893,7 @@ class NameApprovalView(discord.ui.LayoutView):
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(
                 view_channel=True, send_messages=False,
+                mention_everyone=False,
             ),
             guild.me: discord.PermissionOverwrite(
                 view_channel=True, send_messages=True,
@@ -909,7 +910,7 @@ class NameApprovalView(discord.ui.LayoutView):
             if extra:
                 overwrites[extra] = discord.PermissionOverwrite(
                     view_channel=True, send_messages=True,
-                    read_message_history=True,
+                    read_message_history=True, mention_everyone=False,
                 )
 
         channel = await guild.create_text_channel(
