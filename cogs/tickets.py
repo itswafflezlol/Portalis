@@ -181,12 +181,15 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
     mention, ping_roles, ping_users = user.mention, [], [user]
     if kind == "paid_ad":
         payer = guild.get_role(cfg["paid_ads_manager_role_id"])
-        ping_users += payer.members if payer else []
-        mention += " " + (
-            " ".join(m.mention for m in payer.members)
-            if payer and payer.members
-            else payer.mention if payer else "the payment manager"
-        )
+        if payer:
+            others = [m for m in payer.members if m != user]
+            ping_users += others
+            mention += " " + (
+                " ".join(m.mention for m in payer.members)
+                or payer.mention
+            )
+        else:
+            mention += " the payment manager"
     elif staff:
         ping_roles = [staff]
         mention += f" {staff.mention}"
