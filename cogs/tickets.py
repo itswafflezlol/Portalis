@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from branding import RED, panel_file
@@ -38,6 +39,13 @@ def can_review(member: discord.Member, cfg: dict) -> bool:
     return is_staff(member, cfg) or any(
         r.id == cfg["partnership_manager_role_id"] for r in member.roles
     )
+
+
+def can_staff(member: discord.Member, cfg: dict) -> bool:
+    """Staff, partnership manager or paid-ads manager."""
+    return can_review(member, cfg) or member.get_role(
+        cfg["paid_ads_manager_role_id"]
+    ) is not None
 
 
 def is_staff(member: discord.Member, cfg: dict) -> bool:
@@ -980,6 +988,63 @@ def _transcript_line(m: discord.Message) -> str:
     return f"[{m.created_at:%Y-%m-%d %H:%M}] {m.author}: {body}"
 
 
+class CloseRequestView(discord.ui.LayoutView):
+    """Asks the ticket owner if the ticket can be closed."""
+
+    def __init__(self, channel_id: int = 0, ping: str = "",
+                 done: bool = False):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.channel_id = channel_id
+
+        yes = ui.Button(
+            label="Yes, close it", style=discord.ButtonStyle.danger,
+            emoji="🔒", custom_id=f"portal:closereq:{channel_id}:yes",
+            disabled=done,
+        )
+        yes.callback = self._yes
+        no = ui.Button(
+            label="Still need help", style=discord.ButtonStyle.secondary,
+            emoji="✋", custom_id=f"portal:closereq:{channel_id}:no",
+            disabled=done,
+        )
+        no.callback = self._no
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                f"## 🔒 Close request\n{ping}\n"
+                "Staff asked if this ticket can be closed. "
+                + ("*(answered)*" if done else "Are you good to go?")
+            ),
+            ui.ActionRow(yes, no),
+            accent_color=RED,
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        ticket = interaction.client.store.data["tickets"].get(
+            str(self.channel_id)
+        )
+        if (ticket and interaction.user.id == ticket["owner"]) \
+                or can_staff(interaction.user, interaction.client.cfg):
+            return True
+        await interaction.response.send_message(
+            "Only the ticket owner answers this.", ephemeral=True
+        )
+        return False
+
+    async def _yes(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(
+            view=CloseRequestView(self.channel_id, done=True)
+        )
+        await close_ticket(interaction)
+
+    async def _no(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(
+            view=CloseRequestView(self.channel_id, done=True)
+        )
+        await interaction.followup.send("Keeping the ticket open. 👍")
+
+
 async def close_ticket(interaction: discord.Interaction):
     bot, channel, guild = interaction.client, interaction.channel, interaction.guild
     ticket = bot.store.data["tickets"].pop(str(channel.id), None)
@@ -1014,6 +1079,74 @@ class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def _ticket_guard(self, interaction: discord.Interaction):
+        """Ticket-channel + staff check for the ticket commands."""
+        ticket = self.bot.store.data["tickets"].get(
+            str(interaction.channel.id)
+        )
+        if ticket is None:
+            await interaction.response.send_message(
+                "Use this inside a ticket channel.", ephemeral=True
+            )
+            return None
+        if not can_staff(interaction.user, self.bot.cfg):
+            await interaction.response.send_message(
+                "Staff only.", ephemeral=True
+            )
+            return None
+        return ticket
+
+    @app_commands.command(
+        name="closeticket", description="Close this ticket"
+    )
+    async def closeticket(self, interaction: discord.Interaction):
+        if await self._ticket_guard(interaction) is None:
+            return
+        await interaction.response.send_message("🔒 Closing ticket…")
+        await close_ticket(interaction)
+
+    @app_commands.command(
+        name="closerequest",
+        description="Ask the ticket owner if it can be closed",
+    )
+    async def closerequest(self, interaction: discord.Interaction):
+        ticket = await self._ticket_guard(interaction)
+        if ticket is None:
+            return
+        owner = interaction.guild.get_member(ticket["owner"])
+        await interaction.response.send_message(
+            "Close request sent.", ephemeral=True
+        )
+        await interaction.channel.send(
+            view=CloseRequestView(
+                interaction.channel.id,
+                ping=owner.mention if owner else "",
+            ),
+            allowed_mentions=discord.AllowedMentions(
+                users=[owner] if owner else []
+            ),
+        )
+
+    @app_commands.command(
+        name="pinguser",
+        description="Ping the ticket owner to check they're still here",
+    )
+    async def pinguser(self, interaction: discord.Interaction):
+        ticket = await self._ticket_guard(interaction)
+        if ticket is None:
+            return
+        owner = interaction.guild.get_member(ticket["owner"])
+        if owner is None:
+            await interaction.response.send_message(
+                "The ticket owner left the server.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            f"{owner.mention} — are you still here? 👀 "
+            "Staff is waiting on you.",
+            allowed_mentions=discord.AllowedMentions(users=[owner]),
+        )
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.guild is None:
@@ -1026,7 +1159,7 @@ class Tickets(commands.Cog):
                 await message.delete()
                 await message.channel.send(
                     f"{message.author.mention} — no pings allowed here. "
-                    "Message deleted."
+                    "Message deleted.", delete_after=5,
                 )
             return
 
@@ -1073,6 +1206,7 @@ class Tickets(commands.Cog):
 
 async def setup(bot):
     for cid, t in bot.store.data["tickets"].items():
+        bot.add_view(CloseRequestView(int(cid)))
         pending = t.get("pending_ad")
         if pending and pending.get("proof"):
             bot.add_view(AdReviewView(
