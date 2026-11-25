@@ -105,6 +105,38 @@ class RulesPanelView(discord.ui.LayoutView):
         ))
 
 
+class BoosterPanelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://boost.gif"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🚀 Booster Perks\n"
+                "Boost SMP Portal and unlock:\n\n"
+                "🚀 **Booster role** — exclusive color, hoisted above "
+                "the member list\n"
+                "💬 **Booster lounge** — private channel just for "
+                "boosters\n"
+                "🖼️ **Media perks** — post images & embeds anywhere\n"
+                "🎫 **Priority support** — your tickets get answered "
+                "first\n"
+                "✨ **Early access** — sneak peeks at events, drops & "
+                "features\n"
+                "🎁 **Nitro extras** — first dibs on giveaway entries "
+                "and event spots\n\n"
+                "-# 2 boosts = shoutout in announcements. Boosts keep "
+                "the Portal running — thank you ❤️"
+            ),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+
 class PaidAdsPanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
@@ -214,6 +246,7 @@ PANELS = {
     "pings": ("pings.gif", PingRolesView),
     "server": ("server.gif", ServerInfoPanelView),
     "rules": ("rules.gif", RulesPanelView),
+    "boost": ("boost.gif", BoosterPanelView),
 }
 
 
@@ -232,6 +265,7 @@ class Admin(commands.Cog):
         app_commands.Choice(name="Ping roles", value="pings"),
         app_commands.Choice(name="Server info", value="server"),
         app_commands.Choice(name="Rules", value="rules"),
+        app_commands.Choice(name="Booster perks", value="boost"),
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):

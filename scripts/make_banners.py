@@ -34,6 +34,7 @@ WORDS = {
     "giveaway": "GIVEAWAY",
     "server": "WELCOME",
     "rules": "RULES",
+    "boost": "BOOST",
 }
 
 
