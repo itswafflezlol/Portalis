@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from branding import RED, panel_file
 
@@ -14,7 +14,7 @@ TICKET_TYPES = {
     "paid_ad": ("💎 Paid Ad", "Buy a custom ad channel for your server."),
 }
 
-PLANS = {"1w": ("1 Week", "$10"), "1m": ("1 Month", "$25")}
+PLANS = {"1w": ("1 Week", "$10", 7), "1m": ("1 Month", "$25", 30)}
 
 CATEGORIES = {
     "public": ("Public", "🌍"),
@@ -661,7 +661,7 @@ class PaidAdPlanView(discord.ui.LayoutView):
         plan = interaction.data["values"][0]
         ticket["plan"] = plan
         await bot.store.save()
-        label, price = PLANS[plan]
+        label, price, _ = PLANS[plan]
 
         payer = interaction.guild.get_role(
             bot.cfg["paid_ads_manager_role_id"]
@@ -916,6 +916,11 @@ class NameApprovalView(discord.ui.LayoutView):
             name=f"{emoji}・{name}", category=category, overwrites=overwrites,
         )
         bot.store.data.setdefault("paid_channels", []).append(channel.id)
+        days = PLANS.get(ticket.get("plan"), (None, None, 7))[2]
+        expires = datetime.now(timezone.utc) + timedelta(days=days)
+        bot.store.data.setdefault("paid_channel_expiry", {})[
+            str(channel.id)
+        ] = expires.isoformat()
         ticket["paid_channel"] = channel.id
         del ticket["pending_channel"]
         await bot.store.save()
@@ -929,7 +934,9 @@ class NameApprovalView(discord.ui.LayoutView):
         )
         await interaction.channel.send(
             f"💎 {channel.mention} is live — post your ad, "
-            f"{owner.mention if owner else 'buyer'}. No pings allowed."
+            f"{owner.mention if owner else 'buyer'}. No pings allowed.\n"
+            f"Expires <t:{int(expires.timestamp())}:R> — the channel "
+            "is deleted automatically when time runs out."
         )
 
     async def _deny(self, interaction: discord.Interaction):
@@ -1081,6 +1088,54 @@ async def close_ticket(interaction: discord.Interaction):
 class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def cog_load(self):
+        self._expire_paid.start()
+
+    async def cog_unload(self):
+        self._expire_paid.cancel()
+
+    @tasks.loop(minutes=5)
+    async def _expire_paid(self):
+        """Delete paid-ad channels whose plan ran out."""
+        store = self.bot.store
+        expiry = store.data.get("paid_channel_expiry", {})
+        now = datetime.now(timezone.utc)
+        expired = [
+            (int(cid), iso) for cid, iso in expiry.items()
+            if datetime.fromisoformat(iso) <= now
+        ]
+        if not expired:
+            return
+
+        guild = self.bot.get_guild(self.bot.cfg["guild_id"])
+        log = guild and guild.get_channel(
+            self.bot.cfg["ticket_log_channel_id"]
+        )
+        for cid, _ in expired:
+            del expiry[str(cid)]
+            if cid in store.data.get("paid_channels", []):
+                store.data["paid_channels"].remove(cid)
+            for t in store.data["tickets"].values():
+                if t.get("paid_channel") == cid:
+                    t.pop("paid_channel", None)
+
+            ch = guild.get_channel(cid) if guild else None
+            name = ch.name if ch else str(cid)
+            if ch is not None:
+                try:
+                    await ch.delete(reason="Paid ad plan expired")
+                except discord.HTTPException:
+                    pass
+            if log is not None:
+                await log.send(
+                    f"⏰ Paid ad channel `{name}` expired and was deleted."
+                )
+        await store.save()
+
+    @_expire_paid.before_loop
+    async def _before_expire(self):
+        await self.bot.wait_until_ready()
 
     async def _ticket_guard(self, interaction: discord.Interaction):
         """Ticket-channel + staff check for the ticket commands."""
