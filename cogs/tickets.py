@@ -371,18 +371,14 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
             )
             return
 
-        pending = {"server": self.server.value, "text": text}
+        pending = {"server": self.server.value, "text": text, "proof": None}
         ticket["pending_ad"] = pending
         await bot.store.save()
 
-        await interaction.channel.send(
-            view=AdReviewView(
-                interaction.channel.id, pending["server"], pending["text"]
-            )
-        )
         await interaction.response.send_message(
-            "Ad sent for staff review — it'll go live once a staff member "
-            "or partnership manager confirms it.", ephemeral=True,
+            "Last step — **send a screenshot** of our ad posted in your "
+            "server. Upload the image in this channel and staff will "
+            "review everything."
         )
 
 
@@ -390,7 +386,8 @@ class AdReviewView(discord.ui.LayoutView):
     """Review card posted inside the partnership ticket."""
 
     def __init__(self, channel_id: int, server: str = "", ad: str = "",
-                 status: str = None, actor: str = "", extra: str = ""):
+                 proof: str = None, status: str = None, actor: str = "",
+                 extra: str = ""):
         super().__init__(timeout=None)
         ui = discord.ui
         self.channel_id = channel_id
@@ -417,16 +414,22 @@ class AdReviewView(discord.ui.LayoutView):
         else:
             header = "## 🔍 Ad pending review"
             body = (
-                f"**Server:** {server}\n\n{ad}\n"
-                "-# Staff / Partnership Manager: confirm to post it to "
-                "the forum, or deny it."
+                f"**Server:** {server}\n\n{ad}\n\n"
+                "**Staff to-do**\n"
+                "• Check out their Discord — make sure it's appropriate "
+                "and follows guidelines\n"
+                "• Check they posted our ad in their server "
+                "(screenshot below)\n"
+                "• Confirm or deny"
             )
 
-        self.add_item(ui.Container(
-            ui.TextDisplay(f"{header}\n{body}"),
-            ui.ActionRow(ok, no),
-            accent_color=RED,
-        ))
+        children = [ui.TextDisplay(f"{header}\n{body}")]
+        if proof:
+            children.append(ui.MediaGallery(
+                discord.MediaGalleryItem(proof)
+            ))
+        children.append(ui.ActionRow(ok, no))
+        self.add_item(ui.Container(*children, accent_color=RED))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if not can_review(interaction.user, interaction.client.cfg):
@@ -470,6 +473,7 @@ class AdReviewView(discord.ui.LayoutView):
         await interaction.response.edit_message(
             view=AdReviewView(
                 self.channel_id, pending["server"], pending["text"],
+                proof=pending.get("proof"),
                 status="approved", actor=interaction.user.mention,
                 extra=f"Live: {thread.jump_url}",
             )
@@ -508,6 +512,7 @@ class DenyAdModal(discord.ui.Modal, title="Deny ad"):
         await interaction.response.edit_message(
             view=AdReviewView(
                 self.channel_id, pending["server"], pending["text"],
+                proof=pending.get("proof"),
                 status="denied", actor=interaction.user.mention,
                 extra=reason,
             )
@@ -568,12 +573,47 @@ class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or message.guild is None:
+            return
+        ticket = self.bot.store.data["tickets"].get(str(message.channel.id))
+        if not ticket or ticket["type"] != "partnership":
+            return
+        pending = ticket.get("pending_ad")
+        if not pending or pending.get("proof"):
+            return
+        if message.author.id != ticket["owner"]:
+            return
+
+        image = next(
+            (a for a in message.attachments
+             if a.content_type and a.content_type.startswith("image/")),
+            None,
+        )
+        if image is None:
+            await message.reply(
+                "That doesn't look like a screenshot — upload the image "
+                "file directly."
+            )
+            return
+
+        pending["proof"] = image.url
+        await self.bot.store.save()
+        await message.channel.send(
+            view=AdReviewView(
+                message.channel.id, pending["server"], pending["text"],
+                pending["proof"],
+            )
+        )
+
 
 async def setup(bot):
     for cid, t in bot.store.data["tickets"].items():
         pending = t.get("pending_ad")
-        if pending:
+        if pending and pending.get("proof"):
             bot.add_view(AdReviewView(
-                int(cid), pending["server"], pending["text"]
+                int(cid), pending["server"], pending["text"],
+                pending["proof"],
             ))
     await bot.add_cog(Tickets(bot))
