@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
+from PIL import Image
 
 from branding import RED, panel_file
 
@@ -1399,10 +1400,17 @@ class Tickets(commands.Cog):
              if a.content_type and a.content_type.startswith("image/")),
             None,
         )
+        if image is not None:
+            # actually decode it — extension/content-type can be faked
+            try:
+                Image.open(io.BytesIO(await image.read())).verify()
+            except Exception:
+                image = None
         if image is None:
-            await message.reply(
-                "That doesn't look like a screenshot — upload the image "
-                "file directly."
+            await message.delete()
+            await message.channel.send(
+                f"{message.author.mention} — that's not a valid image. "
+                "Upload the screenshot file directly.", delete_after=5,
             )
             return
 
