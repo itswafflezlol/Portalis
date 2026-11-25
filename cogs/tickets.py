@@ -106,7 +106,11 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
             )
             return
 
-    if kind == "partnership" and user.id not in cfg["cooldown_exempt"]:
+    # exempt if the user's ID *or* any of their role IDs is listed
+    exempt = user.id in cfg["cooldown_exempt"] or any(
+        r.id in cfg["cooldown_exempt"] for r in user.roles
+    )
+    if kind == "partnership" and not exempt:
         until = store.data.get("partner_cooldowns", {}).get(str(user.id))
         if until:
             exp = datetime.fromisoformat(until)
@@ -150,7 +154,7 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
                 read_message_history=True,
             )
     if kind == "paid_ad":
-        payer = guild.get_member(cfg["paid_ads_manager_id"])
+        payer = guild.get_role(cfg["paid_ads_manager_role_id"])
         if payer:
             overwrites[payer] = discord.PermissionOverwrite(
                 view_channel=True, send_messages=True,
@@ -637,15 +641,19 @@ class PaidAdPlanView(discord.ui.LayoutView):
         await bot.store.save()
         label, price = PLANS[plan]
 
-        payer = interaction.guild.get_member(
-            bot.cfg["paid_ads_manager_id"]
+        payer = interaction.guild.get_role(
+            bot.cfg["paid_ads_manager_role_id"]
         )
+        # ping the role's members directly — bots can't ping
+        # unmentionable roles otherwise
+        payer_txt = (
+            " ".join(m.mention for m in payer.members) or payer.mention
+        ) if payer else "the payment manager"
         await interaction.response.send_message(
             f"Plan: **{label} ({price})**"
         )
         await interaction.channel.send(view=PaymentConfirmView(
-            label, price, bot.cfg["kofi_link"],
-            payer.mention if payer else "the payment manager",
+            label, price, bot.cfg["kofi_link"], payer_txt,
         ))
 
 
@@ -677,7 +685,9 @@ class PaymentConfirmView(discord.ui.LayoutView):
 
     async def _confirm(self, interaction: discord.Interaction):
         bot = interaction.client
-        if interaction.user.id != bot.cfg["paid_ads_manager_id"]:
+        if interaction.user.get_role(
+            bot.cfg["paid_ads_manager_role_id"]
+        ) is None:
             await interaction.response.send_message(
                 "Only the payment manager confirms payments.",
                 ephemeral=True,
@@ -762,11 +772,16 @@ class ChannelNameModal(discord.ui.Modal, title="Channel emoji & name"):
         }
         await bot.store.save()
 
-        payer = interaction.guild.get_member(bot.cfg["paid_ads_manager_id"])
+        payer = interaction.guild.get_role(
+            bot.cfg["paid_ads_manager_role_id"]
+        )
+        payer_txt = (
+            " ".join(m.mention for m in payer.members) or payer.mention
+        ) if payer else "the payment manager"
         owner = interaction.user.mention
         await interaction.channel.send(view=NameApprovalView(
             self.emoji.value.strip(), self.name.value.strip(), owner,
-            payer.mention if payer else "the payment manager",
+            payer_txt,
         ))
         await interaction.response.send_message(
             "Sent for approval.", ephemeral=True
@@ -816,7 +831,9 @@ class NameApprovalView(discord.ui.LayoutView):
 
     async def _check(self, interaction: discord.Interaction):
         bot = interaction.client
-        if interaction.user.id != bot.cfg["paid_ads_manager_id"]:
+        if interaction.user.get_role(
+            bot.cfg["paid_ads_manager_role_id"]
+        ) is None:
             await interaction.response.send_message(
                 "Only the payment manager approves names.", ephemeral=True
             )
@@ -849,7 +866,7 @@ class NameApprovalView(discord.ui.LayoutView):
         owner = guild.get_member(ticket["owner"])
         staff = guild.get_role(bot.cfg["staff_role_id"])
         pm = guild.get_role(bot.cfg["partnership_manager_role_id"])
-        payer = guild.get_member(bot.cfg["paid_ads_manager_id"])
+        payer = guild.get_role(bot.cfg["paid_ads_manager_role_id"])
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(
