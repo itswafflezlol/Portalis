@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from branding import RED, panel_file
-from cogs.tickets import can_staff
+from cogs.tickets import is_staff
 
 DUR_RE = re.compile(r"^(\d+)\s*([smhdw])$", re.I)
 MULT = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
@@ -32,6 +32,7 @@ def _card(gid: str, gw: dict) -> "GiveawayView":
     return GiveawayView(
         gid, gw["prize"], str(ends), len(gw["entries"]),
         gw["tag_required"], host=gw["host"],
+        paused=gw.get("paused", False),
     )
 
 
@@ -40,7 +41,8 @@ class GiveawayView(discord.ui.LayoutView):
 
     def __init__(self, gid: str = "0", prize: str = "", ends: str = "",
                  entries: int = 0, tag: bool = True,
-                 winners: str = None, host: str = ""):
+                 winners: str = None, host: str = "",
+                 paused: bool = False):
         super().__init__(timeout=None)
         ui = discord.ui
         self.gid = gid
@@ -56,6 +58,13 @@ class GiveawayView(discord.ui.LayoutView):
             body = (
                 f"## 🎊 {prize}\n"
                 f"Ended — winner(s): {winners}\n"
+                f"-# Hosted by {host}"
+            )
+        elif paused:
+            body = (
+                f"## ⏸️ {prize}\n"
+                f"**Paused** — the timer is frozen until staff resume "
+                f"it · **{entries}** entered\n"
                 f"-# Hosted by {host}"
             )
         else:
@@ -82,6 +91,12 @@ class GiveawayView(discord.ui.LayoutView):
         if gw is None or gw.get("ended"):
             await interaction.response.send_message(
                 "This giveaway is over.", ephemeral=True
+            )
+            return
+        if gw.get("paused"):
+            await interaction.response.send_message(
+                "This giveaway is paused — try again later.",
+                ephemeral=True,
             )
             return
 
@@ -135,7 +150,7 @@ class Giveaways(commands.Cog):
     async def giveaway(self, interaction: discord.Interaction,
                        prize: str, duration: str, winners: int = 1,
                        tag_required: bool = True):
-        if not can_staff(interaction.user, self.bot.cfg):
+        if not is_staff(interaction.user, self.bot.cfg):
             await interaction.response.send_message(
                 "Staff only.", ephemeral=True
             )
@@ -181,6 +196,121 @@ class Giveaways(commands.Cog):
         await self.bot.store.save()
         await msg.edit(view=_card(gid, gw))
 
+    def _find_gw(self, interaction: discord.Interaction,
+                 message_id: str = None, need_active: bool = True):
+        """Locate a giveaway by message ID, or newest in this channel."""
+        gws = self.bot.store.data.get("giveaways", {})
+        if message_id:
+            return message_id, gws.get(message_id)
+        cands = [
+            (gid, gw) for gid, gw in gws.items()
+            if gw["channel_id"] == interaction.channel.id
+            and (not need_active or not gw.get("ended"))
+        ]
+        if not cands:
+            return None, None
+        return max(cands, key=lambda kv: int(kv[0]))
+
+    @app_commands.command(
+        name="giveawayend", description="End a giveaway right now"
+    )
+    @app_commands.describe(
+        message_id="Giveaway message ID (default: newest in this channel)"
+    )
+    async def giveawayend(self, interaction: discord.Interaction,
+                          message_id: str = None):
+        if not is_staff(interaction.user, self.bot.cfg):
+            await interaction.response.send_message(
+                "Staff only.", ephemeral=True
+            )
+            return
+        gid, gw = self._find_gw(interaction, message_id)
+        if gw is None or gw.get("ended"):
+            await interaction.response.send_message(
+                "No active giveaway found — pass the message ID if "
+                "it's in another channel.", ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            "Ending it now…", ephemeral=True
+        )
+        await self._end(gid, gw)
+        await self.bot.store.save()
+
+    @app_commands.command(
+        name="giveawaypause",
+        description="Pause a giveaway — run again to resume",
+    )
+    @app_commands.describe(
+        message_id="Giveaway message ID (default: newest in this channel)"
+    )
+    async def giveawaypause(self, interaction: discord.Interaction,
+                            message_id: str = None):
+        if not is_staff(interaction.user, self.bot.cfg):
+            await interaction.response.send_message(
+                "Staff only.", ephemeral=True
+            )
+            return
+        gid, gw = self._find_gw(interaction, message_id)
+        if gw is None or gw.get("ended"):
+            await interaction.response.send_message(
+                "No active giveaway found.", ephemeral=True
+            )
+            return
+
+        now = datetime.now(timezone.utc)
+        if gw.get("paused"):
+            # resume — push the deadline out by the paused time
+            paused_at = datetime.fromisoformat(gw["paused_at"])
+            ends = datetime.fromisoformat(gw["ends_at"])
+            gw["ends_at"] = (ends + (now - paused_at)).isoformat()
+            gw["paused"] = False
+            gw.pop("paused_at", None)
+            text = "▶️ Resumed — timer is running again."
+        else:
+            gw["paused"] = True
+            gw["paused_at"] = now.isoformat()
+            text = "⏸️ Paused — timer frozen, joins blocked."
+        await self.bot.store.save()
+        await self._edit_card(gid, gw)
+        await interaction.response.send_message(text, ephemeral=True)
+
+    @app_commands.command(
+        name="giveawayreroll",
+        description="Pick new winner(s) for an ended giveaway",
+    )
+    @app_commands.describe(
+        message_id="Giveaway message ID (default: newest in this channel)"
+    )
+    async def giveawayreroll(self, interaction: discord.Interaction,
+                             message_id: str = None):
+        if not is_staff(interaction.user, self.bot.cfg):
+            await interaction.response.send_message(
+                "Staff only.", ephemeral=True
+            )
+            return
+        gid, gw = self._find_gw(interaction, message_id, need_active=False)
+        if gw is None or not gw.get("ended"):
+            await interaction.response.send_message(
+                "No ended giveaway found — pass the message ID if "
+                "it's in another channel.", ephemeral=True,
+            )
+            return
+        pool = list(gw["entries"])
+        if not pool:
+            await interaction.response.send_message(
+                "No entries to reroll.", ephemeral=True
+            )
+            return
+        random.shuffle(pool)
+        gw["result"] = pool[:gw["n_winners"]]
+        await self.bot.store.save()
+        await self._edit_card(gid, gw)
+        winners = " ".join(f"<@{w}>" for w in gw["result"]) or "nobody"
+        await interaction.response.send_message(
+            f"🔁 **{gw['prize']}** rerolled — new winner(s): {winners}"
+        )
+
     async def _edit_card(self, gid: str, gw: dict):
         ch = self.bot.get_channel(gw["channel_id"])
         if ch is None:
@@ -225,7 +355,8 @@ class Giveaways(commands.Cog):
                         kicked = dirty = True
                 if kicked:
                     await self._edit_card(gid, gw)
-            if datetime.fromisoformat(gw["ends_at"]) <= now:
+            if not gw.get("paused") and \
+                    datetime.fromisoformat(gw["ends_at"]) <= now:
                 await self._end(gid, gw)
                 dirty = True
         if dirty:
