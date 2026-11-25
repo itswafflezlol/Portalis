@@ -14,7 +14,7 @@ from cogs.tickets import (
     TicketChannelView,
     TicketPanelView,
 )
-from cogs.admin import PaidAdsPanelView
+from cogs.admin import PaidAdsPanelView, PingRolesView
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
 
@@ -49,8 +49,12 @@ class Portalis(commands.Bot):
         self.add_view(NameApprovalView())
         self.add_view(ApplyPanelView())
         self.add_view(PartnerPanelView())
+        self.add_view(PingRolesView())
 
-        for ext in ("cogs.tickets", "cogs.applications", "cogs.partners", "cogs.admin"):
+        for ext in (
+            "cogs.tickets", "cogs.applications", "cogs.partners",
+            "cogs.admin", "cogs.giveaways",
+        ):
             await self.load_extension(ext)
 
         guild_id = self.cfg.get("guild_id")

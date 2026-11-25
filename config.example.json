@@ -16,6 +16,12 @@
   },
   "cooldown_exempt": [],
   "paid_ads_manager_role_id": 0,
+  "ping_roles": {
+    "news": 0,
+    "giveaway": 0,
+    "polls": 0,
+    "event": 0
+  },
   "paid_category_id": 0,
   "kofi_link": "https://ko-fi.com/REPLACE-ME"
 }

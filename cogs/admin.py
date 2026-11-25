@@ -70,6 +70,73 @@ class PaidAdsPanelView(discord.ui.LayoutView):
         ))
 
 
+class PingRolesView(discord.ui.LayoutView):
+    """Toggleable ping roles — press to get/lose the role."""
+
+    KEYS = [
+        ("news", "📰", "News Ping"),
+        ("giveaway", "🎉", "Giveaway Ping"),
+        ("polls", "📊", "Polls Ping"),
+        ("event", "🎪", "Event Ping"),
+    ]
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        buttons = []
+        for key, emoji, label in self.KEYS:
+            b = ui.Button(
+                label=label, style=discord.ButtonStyle.secondary,
+                emoji=emoji, custom_id=f"portal:pingrole:{key}",
+            )
+            b.callback = self._toggle(key)
+            buttons.append(b)
+
+        self.add_item(ui.Container(
+            ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://pings.gif"
+            )),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🔔 Ping roles\n"
+                "Press a button to get pinged — press again to turn "
+                "it off.\n\n"
+                "📰 **News Ping** — server updates & announcements\n"
+                "🎉 **Giveaway Ping** — new giveaways\n"
+                "📊 **Polls Ping** — community votes\n"
+                "🎪 **Event Ping** — server events"
+            ),
+            ui.ActionRow(*buttons),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+    def _toggle(self, key: str):
+        async def cb(interaction: discord.Interaction):
+            rid = interaction.client.cfg.get("ping_roles", {}).get(key)
+            role = interaction.guild.get_role(rid) if rid else None
+            if role is None:
+                await interaction.response.send_message(
+                    "That role isn't set up yet.", ephemeral=True
+                )
+                return
+            if role in interaction.user.roles:
+                await interaction.user.remove_roles(role)
+                await interaction.response.send_message(
+                    f"**{role.name}** removed — no more pings.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.user.add_roles(role)
+                await interaction.response.send_message(
+                    f"**{role.name}** added — you'll get pinged.",
+                    ephemeral=True,
+                )
+        return cb
+
+
 # kind -> (banner file, view class)
 PANELS = {
     "tickets": ("tickets.gif", TicketPanelView),
@@ -77,6 +144,7 @@ PANELS = {
     "partner": ("partner.gif", PartnerPanelView),
     "info": ("info.gif", InfoPanelView),
     "paidads": ("paidads.gif", PaidAdsPanelView),
+    "pings": ("pings.gif", PingRolesView),
 }
 
 
@@ -92,6 +160,7 @@ class Admin(commands.Cog):
         app_commands.Choice(name="Partner / advertise", value="partner"),
         app_commands.Choice(name="Partnership info", value="info"),
         app_commands.Choice(name="Paid ads", value="paidads"),
+        app_commands.Choice(name="Ping roles", value="pings"),
     ])
     @app_commands.default_permissions(manage_guild=True)
     async def panel(self, interaction: discord.Interaction, kind: str):

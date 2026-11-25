@@ -30,6 +30,8 @@ WORDS = {
     "info": "INFO",
     "paid_ad": "PAID AD",
     "paidads": "PAID ADS",
+    "pings": "PING ME",
+    "giveaway": "GIVEAWAY",
 }
 
 
