@@ -727,19 +727,25 @@ class PaymentConfirmView(discord.ui.LayoutView):
             )
             return
         ticket["paid_confirmed"] = True
+        days = PLANS.get(ticket.get("plan"), (None, None, 7))[2]
+        exp = datetime.now(timezone.utc) + timedelta(days=days)
+        ticket["paid_expires"] = exp.isoformat()
         await bot.store.save()
 
         owner = interaction.guild.get_member(ticket["owner"])
         await interaction.response.send_message("✅ Payment confirmed.")
         await interaction.channel.send(view=ChannelSetupView(
-            owner.mention if owner else "the buyer"
+            owner.mention if owner else "the buyer",
+            f"⏳ Plan ends <t:{int(exp.timestamp())}:F> "
+            f"(<t:{int(exp.timestamp())}:R>) — the channel deletes "
+            "itself when time runs out.",
         ))
 
 
 class ChannelSetupView(discord.ui.LayoutView):
     """Guidelines + emoji/name picker after payment."""
 
-    def __init__(self, opener: str = ""):
+    def __init__(self, opener: str = "", duration: str = ""):
         super().__init__(timeout=None)
         ui = discord.ui
 
@@ -754,7 +760,7 @@ class ChannelSetupView(discord.ui.LayoutView):
         self.add_item(ui.Container(
             ui.TextDisplay(
                 "## 🏷️ Your channel\n"
-                f"{opener} — payment confirmed ✅\n\n"
+                f"{opener} — payment confirmed ✅\n{duration}\n\n"
                 "**Channel guidelines**\n"
                 "• Do **not** ping `@everyone`, `@here`, or anyone — "
                 "messages with pings get **deleted**\n"
@@ -917,8 +923,14 @@ class NameApprovalView(discord.ui.LayoutView):
             name=f"{emoji}・{name}", category=category, overwrites=overwrites,
         )
         bot.store.data.setdefault("paid_channels", []).append(channel.id)
-        days = PLANS.get(ticket.get("plan"), (None, None, 7))[2]
-        expires = datetime.now(timezone.utc) + timedelta(days=days)
+        # plan clock started at payment confirmation
+        expires = (
+            datetime.fromisoformat(ticket["paid_expires"])
+            if ticket.get("paid_expires")
+            else datetime.now(timezone.utc) + timedelta(
+                days=PLANS.get(ticket.get("plan"), (None, None, 7))[2]
+            )
+        )
         bot.store.data.setdefault("paid_channel_expiry", {})[
             str(channel.id)
         ] = expires.isoformat()
@@ -1117,8 +1129,10 @@ class Tickets(commands.Cog):
             del expiry[str(cid)]
             if cid in store.data.get("paid_channels", []):
                 store.data["paid_channels"].remove(cid)
+            owner_id = None
             for t in store.data["tickets"].values():
                 if t.get("paid_channel") == cid:
+                    owner_id = t["owner"]
                     t.pop("paid_channel", None)
 
             ch = guild.get_channel(cid) if guild else None
@@ -1132,6 +1146,17 @@ class Tickets(commands.Cog):
                 await log.send(
                     f"⏰ Paid ad channel `{name}` expired and was deleted."
                 )
+            member = guild.get_member(owner_id) if owner_id else None
+            if member is not None:
+                try:
+                    await member.send(
+                        f"⏰ Your paid ad channel **{name}** in "
+                        "**SMP Portal** expired and was deleted.\n"
+                        "Open a new paid-ad ticket in 「🎫」support to "
+                        "renew anytime."
+                    )
+                except discord.HTTPException:
+                    pass  # DMs closed
         await store.save()
 
     @_expire_paid.before_loop
