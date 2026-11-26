@@ -1,0 +1,12 @@
+category: Freelancers pos=0
+  @everyone: view=False send=None
+  Freelancer: view=True send=True
+  Staff: view=True send=True
+  Portalis: view=True send=True
+📜・freelance-rules
+  Freelancer: view=True send=False
+💬・freelancer-chat
+  @everyone: view=False send=None
+  Staff: view=True send=True
+  Portalis: view=True send=True
+  Freelancer: view=True send=True

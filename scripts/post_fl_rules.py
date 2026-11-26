@@ -37,7 +37,7 @@ def rules_view() -> discord.ui.LayoutView:
         ui.Separator(),
         ui.TextDisplay(
             "### ✅ The rules\n"
-            "• All payments go through staff as middleman — **never** "
+            "• All payments go through **us** (SMP Portal) — **never** "
             "take direct payment. Freelancers caught going around us "
             "lose the role.\n"
             "• Deliver what you promise. If you can't finish a job, "
