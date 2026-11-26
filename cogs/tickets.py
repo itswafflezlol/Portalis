@@ -26,6 +26,8 @@ CATEGORIES = {
 }
 
 PING_RE = re.compile(r"@everyone|@here|<@!?\d+>|<@&\d+>")
+SELF_PROMO_CHANNEL = 1575250716417720420  # 🔗・self-promo
+PROMO_COOLDOWN = 600  # 10 minutes between ads
 
 INVITE_RE = re.compile(
     r"(?:discord\.gg|discord\.com/invite|discordapp\.com/invite)/[\w-]+", re.I
@@ -1440,6 +1442,25 @@ class Tickets(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.guild is None:
+            return
+
+        if message.channel.id == SELF_PROMO_CHANNEL:
+            if can_staff(message.author, self.bot.cfg):
+                return
+            now = datetime.now(timezone.utc).timestamp()
+            cd = self.bot.store.data.setdefault("promo_cooldowns", {})
+            left = int(PROMO_COOLDOWN - (now - cd.get(str(message.author.id), 0)))
+            if left > 0:
+                await message.delete()
+                await message.channel.send(
+                    f"{message.author.mention} — slow down! One ad "
+                    f"every 10 minutes. Try again in {left // 60}m"
+                    f"{left % 60:02d}s.",
+                    delete_after=10,
+                )
+                return
+            cd[str(message.author.id)] = now
+            await self.bot.store.save()
             return
 
         if message.channel.id in self.bot.store.data.get(
