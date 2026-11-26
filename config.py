@@ -22,6 +22,7 @@ DEFAULTS = {
     "paid_ads_manager_id": 0,
     "paid_category_id": 0,
     "kofi_link": "https://ko-fi.com/REPLACE-ME",
+    "welcome_channel_id": 0,
 }
 
 CONFIG_PATH = Path("config.json")
@@ -34,3 +35,7 @@ def load_config() -> dict:
     else:
         CONFIG_PATH.write_text(json.dumps(DEFAULTS, indent=2), encoding="utf-8")
     return cfg
+
+
+def save_config(cfg: dict) -> None:
+    CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")

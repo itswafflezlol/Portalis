@@ -56,7 +56,7 @@ class Portalis(commands.Bot):
 
         for ext in (
             "cogs.tickets", "cogs.applications", "cogs.partners",
-            "cogs.admin", "cogs.giveaways",
+            "cogs.admin", "cogs.giveaways", "cogs.welcome",
         ):
             await self.load_extension(ext)
 
