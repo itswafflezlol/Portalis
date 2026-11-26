@@ -13,6 +13,7 @@ TICKET_TYPES = {
     "support": ("🛠️ Support", "Problems or questions for the staff team."),
     "partnership": ("🤝 Partnership", "Partner or advertise with SMP Portal."),
     "paid_ad": ("💎 Paid Ad", "Buy a custom ad channel for your server."),
+    "ping": ("📣 Ping Ad", "Buy an @here or @everyone ping for your ad."),
 }
 
 PLANS = {"1w": ("1 Week", "$10", 7), "1m": ("1 Month", "$25", 30)}
@@ -162,7 +163,7 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
                 view_channel=True, send_messages=True,
                 read_message_history=True,
             )
-    if kind == "paid_ad":
+    if kind in ("paid_ad", "ping"):
         payer = guild.get_role(cfg["paid_ads_manager_role_id"])
         if payer:
             overwrites[payer] = discord.PermissionOverwrite(
@@ -180,9 +181,10 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
 
     label, blurb = TICKET_TYPES[kind]
     mention, ping_roles, ping_users = user.mention, [], [user]
-    if kind in ("paid_ad", "partnership"):
+    if kind in ("paid_ad", "ping", "partnership"):
         mgr = guild.get_role(
-            cfg["paid_ads_manager_role_id"] if kind == "paid_ad"
+            cfg["paid_ads_manager_role_id"]
+            if kind in ("paid_ad", "ping")
             else cfg["partnership_manager_role_id"]
         )
         if mgr:
@@ -204,6 +206,8 @@ async def open_ticket(interaction: discord.Interaction, kind: str):
         await channel.send(view=PartnershipQuestionsView())
     elif kind == "paid_ad":
         await channel.send(view=PaidAdPlanView())
+    elif kind == "ping":
+        await channel.send(view=PingPlanView())
     await interaction.followup.send(
         f"Ticket opened: {channel.mention}", ephemeral=True
     )
@@ -675,6 +679,76 @@ class PaidAdPlanView(discord.ui.LayoutView):
         await interaction.channel.send(view=PaymentConfirmView(
             label, price, bot.cfg["kofi_link"], payer_txt,
         ))
+
+
+PING_PLANS = {"here": ("@here", "$7"), "everyone": ("@everyone", "$10")}
+
+
+class PingPlanView(discord.ui.LayoutView):
+    """First message in ping tickets: pick @here or @everyone."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+
+        sel = ui.Select(
+            placeholder="Pick your ping…",
+            custom_id="portal:ping:plan",
+            options=[
+                discord.SelectOption(label="@here — $7", value="here",
+                                     emoji="📣"),
+                discord.SelectOption(label="@everyone — $10", value="everyone",
+                                     emoji="🔊"),
+            ],
+        )
+        sel.callback = self._pick
+
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 📣 Pay for a Ping\n"
+                "Get an `@here` or `@everyone` ping with your ad.\n\n"
+                "**1.** Pick your ping:"
+            ),
+            ui.ActionRow(sel),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Official Discord"),
+            accent_color=RED,
+        ))
+
+    async def _pick(self, interaction: discord.Interaction):
+        bot = interaction.client
+        ticket = bot.store.data["tickets"].get(str(interaction.channel.id))
+        if ticket is None or ticket["type"] != "ping":
+            await interaction.response.send_message(
+                "This isn't a ping ticket.", ephemeral=True
+            )
+            return
+        if interaction.user.id != ticket["owner"]:
+            await interaction.response.send_message(
+                "Only the ticket owner picks this.", ephemeral=True
+            )
+            return
+
+        plan = interaction.data["values"][0]
+        ticket["plan"] = plan
+        await bot.store.save()
+        label, price = PING_PLANS[plan]
+
+        payer = interaction.guild.get_role(
+            bot.cfg["paid_ads_manager_role_id"]
+        )
+        payer_txt = payer.mention if payer else "the payment manager"
+        await interaction.response.send_message(
+            f"Ping: **{label} ({price})**"
+        )
+        await interaction.channel.send(
+            f"## 💳 Payment\n"
+            f"Pay **{price} — {label} ping** here:\n"
+            f"{bot.cfg['kofi_link']}\n\n"
+            f"{payer_txt} — your ping goes in **your paid ad channel** "
+            "if you bought one, otherwise in our **partner forum**.\n"
+            "-# Payments are final — no refunds."
+        )
 
 
 class PaymentConfirmView(discord.ui.LayoutView):

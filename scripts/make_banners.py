@@ -36,6 +36,7 @@ WORDS = {
     "rules": "RULES",
     "boost": "BOOST",
     "ad": "OUR AD",
+    "ping": "PING",
 }
 
 

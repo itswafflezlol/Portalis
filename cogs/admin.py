@@ -173,6 +173,12 @@ class PaidAdsPanelView(discord.ui.LayoutView):
         )
         buy.callback = lambda i: open_ticket(i, "paid_ad")
 
+        ping = ui.Button(
+            label="Pay for a ping", style=discord.ButtonStyle.secondary,
+            emoji="📣", custom_id="portal:paidads_ping",
+        )
+        ping.callback = lambda i: open_ticket(i, "ping")
+
         self.add_item(ui.Container(
             ui.MediaGallery(discord.MediaGalleryItem(
                 "attachment://paidads.gif"
@@ -182,12 +188,17 @@ class PaidAdsPanelView(discord.ui.LayoutView):
                 "## 💎 Paid Ads\n"
                 "Get a **custom channel** in the Partners category — your "
                 "ad pinned at the top, only you and staff can type.\n\n"
-                "**Prices**\n"
+                "**Channel prices**\n"
                 "• $10 — one week\n"
-                "• $25 — one month\n"
+                "• $25 — one month\n\n"
+                "**Ping prices**\n"
+                "• $7 — `@here` ping\n"
+                "• $10 — `@everyone` ping\n\n"
+                "Pings go in **your paid ad channel** — if you don't have "
+                "one, they go in our **partner forum** instead.\n"
                 "-# Payments via Ko-fi, final — no refunds."
             ),
-            ui.ActionRow(buy),
+            ui.ActionRow(buy, ping),
             ui.Separator(),
             ui.TextDisplay("-# SMP Portal · Official Discord"),
             accent_color=RED,
