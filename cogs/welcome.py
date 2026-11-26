@@ -125,7 +125,7 @@ class Welcome(commands.Cog):
             return
         avatar = await member.display_avatar.read()
         file = discord.File(welcome_banner(member, avatar), "welcome.png")
-        await ch.send(member.mention, view=welcome_view(member), file=file)
+        await ch.send(view=welcome_view(member), file=file)
 
     @app_commands.command(
         name="welcome-channel-test",
@@ -150,9 +150,7 @@ class Welcome(commands.Cog):
             welcome_banner(interaction.user, avatar), "welcome.png"
         )
         await ch.send(
-            interaction.user.mention,
-            view=welcome_view(interaction.user),
-            file=file,
+            view=welcome_view(interaction.user), file=file,
         )
         await interaction.response.send_message(
             f"Test welcome posted in {ch.mention}.", ephemeral=True
