@@ -28,6 +28,14 @@ def rules_view() -> discord.ui.LayoutView:
         ),
         ui.Separator(),
         ui.TextDisplay(
+            "### 💳 Payment methods\n"
+            "You **must** be able to receive **PayPal** or **bank "
+            "transfer** — no other payment method.\n"
+            "If you can't get either, we can't offer your services "
+            "until you do."
+        ),
+        ui.Separator(),
+        ui.TextDisplay(
             "### ✅ The rules\n"
             "• All payments go through staff as middleman — **never** "
             "take direct payment. Freelancers caught going around us "
