@@ -1245,12 +1245,15 @@ class Tickets(commands.Cog):
                 "Use this inside a ticket channel.", ephemeral=True
             )
             return None
-        if not can_staff(interaction.user, self.bot.cfg):
-            await interaction.response.send_message(
-                "Staff only.", ephemeral=True
-            )
-            return None
-        return ticket
+        if can_staff(interaction.user, self.bot.cfg):
+            return ticket
+        if ticket.get("type") == "freelance" \
+                and ticket.get("freelancer") == interaction.user.id:
+            return ticket
+        await interaction.response.send_message(
+            "Staff only.", ephemeral=True
+        )
+        return None
 
     @app_commands.command(
         name="closeticket", description="Close this ticket"

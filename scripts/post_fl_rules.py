@@ -55,6 +55,30 @@ def rules_view() -> discord.ui.LayoutView:
         ),
         ui.Separator(),
         ui.TextDisplay(
+            "### 🛍️ Your service post\n"
+            "Post your ad in 🛍️・services — **one post per "
+            "freelancer**, extras get deleted.\n"
+            "Pick the tag that matches your service, and include "
+            "what you do, portfolio/examples, prices and turnaround "
+            "time. Buyers press **Hire this freelancer** to open an "
+            "order with you."
+        ),
+        ui.Separator(),
+        ui.TextDisplay(
+            "### 🧾 Orders\n"
+            "• Buyer explains the job + sends reference images\n"
+            "• You **accept** or **decline** the order\n"
+            "• **Buyer always pays first** — press Continue once "
+            "the payment lands, then the commission starts\n"
+            "• Finish it → `/deliver` with the file attached — the "
+            "buyer gets it in DMs and rates you 1–5 ⭐\n"
+            "• Reviews post to ⭐・reviews and your portfolio thread\n\n"
+            "**Commands in your order tickets**\n"
+            "`/deliver` — send the finished file · `/closeticket` — "
+            "close it · `/closerequest` — ask the buyer to close"
+        ),
+        ui.Separator(),
+        ui.TextDisplay(
             "### ⚠️ Consequences\n"
             "Breaking the rules = warning, then role removal. "
             "Serious stuff (scamming, stealing) = instant removal + ban.\n\n"

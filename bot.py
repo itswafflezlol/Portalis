@@ -18,6 +18,7 @@ from cogs.tickets import (
 from cogs.admin import PaidAdsPanelView, PingRolesView, StaffGuidesPanelView
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
+from cogs.freelance import HireView, OrderView, PaidView, StarsView
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -53,10 +54,15 @@ class Portalis(commands.Bot):
         self.add_view(PartnerPanelView())
         self.add_view(PingRolesView())
         self.add_view(StaffGuidesPanelView())
+        self.add_view(HireView())
+        self.add_view(OrderView())
+        self.add_view(PaidView())
+        self.add_view(StarsView())
 
         for ext in (
             "cogs.tickets", "cogs.applications", "cogs.partners",
             "cogs.admin", "cogs.giveaways", "cogs.welcome",
+            "cogs.freelance",
         ):
             await self.load_extension(ext)
 
