@@ -1,6 +1,6 @@
 """One-time: build the freelance marketplace channels.
 
-- 🛍️・services forum inside Freelancers cat (public view, freelancers post)
+- set-up text channel inside Freelancers cat (freelancers+staff only)
 - Freelance Orders category (hidden, tickets land here)
 - ⭐・reviews channel in SMP Market (bot posts reviews only)
 """
@@ -42,40 +42,12 @@ async def main():
         fl = guild.get_role(cfg["freelancer_role_id"])
         cat = guild.get_channel(FREELANCERS_CAT)
 
-        forum = await guild.create_forum(
-            name="🛍️・services",
-            category=cat,
-            topic=GUIDELINES,
-            available_tags=[
-                discord.ForumTag(name=n, emoji=e) for n, e in SKILL_TAGS
-            ],
-            overwrites={
-                everyone: discord.PermissionOverwrite(
-                    view_channel=True, send_messages=False,
-                    create_public_threads=False,
-                    send_messages_in_threads=True,
-                ),
-                fl: discord.PermissionOverwrite(
-                    view_channel=True, send_messages=True,
-                    create_public_threads=True,
-                    send_messages_in_threads=True,
-                ),
-                staff: discord.PermissionOverwrite(
-                    view_channel=True, send_messages=True,
-                    manage_messages=True, manage_threads=True,
-                ),
-                guild.me: discord.PermissionOverwrite(
-                    view_channel=True, send_messages=True,
-                    manage_channels=True, manage_threads=True,
-                ),
-            },
+        setup_ch = await guild.create_text_channel(
+            name="set-up", category=cat,
+            topic="Set up your freelancer profile — your ad gets "
+                  "posted to the freelancers forum.",
         )
-        print("services forum:", forum.id, flush=True)
-        try:
-            await forum.edit(require_tag=True)
-            print("require_tag set", flush=True)
-        except Exception as e:
-            print("require_tag failed:", e, flush=True)
+        print("set-up channel:", setup_ch.id, flush=True)
 
         orders = await guild.create_category(
             "Freelance Orders",

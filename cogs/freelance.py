@@ -1,4 +1,4 @@
-"""Freelance marketplace: service posts, hire button, order tickets,
+"""Freelance marketplace: profile setup, service ads, order tickets,
 delivery + reviews."""
 import io
 import re
@@ -7,17 +7,33 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from branding import RED
+from branding import RED, panel_file
 from cogs.tickets import can_staff, close_ticket
 
-HIRE_FORUM_ID = 1575566376138055780   # 🛍️・services
+SETUP_CHANNEL_ID = 1575661190502158430    # set-up (freelancers only)
+SERVICE_FORUM_ID = 1575311075778240592    # 💼・freelancers (public)
 ORDERS_CATEGORY_ID = 1575566377111003186  # Freelance Orders
 REVIEWS_CHANNEL_ID = 1575566378247790714  # ⭐・reviews
-PORTFOLIO_FORUM_ID = 1575311077585977424  # 🖼️・portfolio
+
+SKILL_TAGS = [
+    "art", "plugins", "skripts", "thumbnails",
+    "models", "datapacks", "web development",
+]
 
 
 def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9\-_]", "", name.lower().replace(" ", "-")) or "user"
+
+
+def _fl_posts(bot) -> dict:
+    return bot.store.data.setdefault("fl_posts", {})
+
+
+def _owner_of(bot, thread_id: int) -> int:
+    for uid, p in _fl_posts(bot).items():
+        if p.get("thread") == thread_id:
+            return int(uid)
+    return 0
 
 
 class HireView(discord.ui.LayoutView):
@@ -48,12 +64,13 @@ class HireView(discord.ui.LayoutView):
         )
         thread = interaction.channel
         if not isinstance(thread, discord.Thread) \
-                or thread.parent_id != HIRE_FORUM_ID:
+                or thread.parent_id != SERVICE_FORUM_ID:
             await interaction.response.send_message(
                 "Use this inside a service post.", ephemeral=True
             )
             return
-        fl = guild.get_member(thread.owner_id)
+        fl_id = _owner_of(bot, thread.id)
+        fl = guild.get_member(fl_id) if fl_id else None
         if fl is None or fl.get_role(bot.cfg["freelancer_role_id"]) is None:
             await interaction.response.send_message(
                 "This freelancer is no longer available.", ephemeral=True
@@ -113,6 +130,151 @@ class HireView(discord.ui.LayoutView):
         )
         await interaction.followup.send(
             f"Order opened: {channel.mention}", ephemeral=True
+        )
+
+
+class ProfileModal(discord.ui.Modal, title="Your service ad"):
+    offer = discord.ui.TextInput(
+        label="What do you offer?",
+        placeholder="e.g. Custom Skripts, server setups, logo design…",
+        style=discord.TextStyle.paragraph, required=True, max_length=600,
+    )
+    portfolio = discord.ui.TextInput(
+        label="Portfolio / examples (links)",
+        placeholder="Imgur album, website, past work…",
+        style=discord.TextStyle.paragraph, required=True, max_length=400,
+    )
+    prices = discord.ui.TextInput(
+        label="Your prices",
+        placeholder="e.g. Skripts from $5 · thumbnails $2 each",
+        style=discord.TextStyle.paragraph, required=True, max_length=300,
+    )
+    turnaround = discord.ui.TextInput(
+        label="Turnaround time (optional)",
+        placeholder="e.g. 2–5 days per order",
+        style=discord.TextStyle.short, required=False, max_length=100,
+    )
+
+    def __init__(self, tag: str):
+        super().__init__()
+        self.tag = tag
+
+    async def on_submit(self, interaction: discord.Interaction):
+        bot = interaction.client
+        if interaction.user.get_role(bot.cfg["freelancer_role_id"]) is None:
+            await interaction.response.send_message(
+                "Freelancers only.", ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+        ad = (
+            f"# 🛍️ {name} — {self.tag.title()}\n"
+            f"## What I do\n{self.offer.value}\n\n"
+            f"## 📁 Portfolio\n{self.portfolio.value}\n\n"
+            f"## 💰 Prices\n{self.prices.value}\n"
+        )
+        if self.turnaround.value:
+            ad += f"\n## ⏱️ Turnaround\n{self.turnaround.value}\n"
+        ad += (
+            "\n-# Order via the button below — payments go "
+            "through SMP Portal."
+        )
+
+        forum = interaction.guild.get_channel(SERVICE_FORUM_ID)
+        if forum is None:
+            await interaction.response.send_message(
+                "Services forum not found.", ephemeral=True
+            )
+            return
+        tag_obj = next(
+            (t for t in forum.available_tags if t.name == self.tag), None
+        )
+        posts = _fl_posts(bot)
+        me = posts.setdefault(str(interaction.user.id), {})
+
+        thread = None
+        tid = me.get("thread")
+        if tid:
+            thread = interaction.guild.get_channel(tid)
+        if thread is not None:
+            try:
+                await thread.edit(
+                    name=f"{name} — {self.tag.title()}",
+                    applied_tags=[tag_obj] if tag_obj else [],
+                )
+                starter = await thread.fetch_message(thread.id)
+                await starter.edit(content=ad)
+            except discord.HTTPException:
+                thread = None
+        if thread is None:
+            thread = await forum.create_thread(
+                name=f"{name} — {self.tag.title()}",
+                content=ad,
+                applied_tags=[tag_obj] if tag_obj else [],
+            )
+            me["thread"] = thread.id
+            await thread.send(view=HireView())
+        me["tag"] = self.tag
+        await bot.store.save()
+        await interaction.response.send_message(
+            f"Your ad is live: {thread.jump_url}", ephemeral=True
+        )
+
+
+class TagSelect(discord.ui.View):
+    """Ephemeral: pick the skill tag before the profile form."""
+
+    def __init__(self):
+        super().__init__(timeout=180)
+        sel = discord.ui.Select(
+            placeholder="What do you do? (matches the forum tags)",
+            options=[discord.SelectOption(label=t.title(), value=t)
+                     for t in SKILL_TAGS],
+        )
+        sel.callback = self._pick
+        self.add_item(sel)
+
+    async def _pick(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(
+            ProfileModal(interaction.data["values"][0])
+        )
+
+
+class SetUpView(discord.ui.LayoutView):
+    """Posted in set-up — freelancers press to create/edit their ad."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        btn = ui.Button(
+            label="Set up my profile", emoji="🛍️",
+            style=discord.ButtonStyle.danger,
+            custom_id="portal:fl:setup",
+        )
+        btn.callback = self._setup
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 🛍️ Set up your freelancer ad\n"
+                "Fill in your profile — your ad gets posted to "
+                "**💼・freelancers** where buyers can hire you.\n\n"
+                "-# One ad per freelancer — re-run this anytime "
+                "to update it."
+            ),
+            ui.ActionRow(btn),
+            accent_color=RED,
+        ))
+
+    async def _setup(self, interaction: discord.Interaction):
+        if interaction.user.get_role(
+            interaction.client.cfg["freelancer_role_id"]
+        ) is None:
+            await interaction.response.send_message(
+                "Freelancers only.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            "Pick your tag first:", view=TagSelect(), ephemeral=True
         )
 
 
@@ -297,37 +459,18 @@ class ReviewModal(discord.ui.Modal, title="Leave a review"):
         if reviews is not None:
             await reviews.send(view=card)
 
-        # also push into the freelancer's portfolio review thread
+        # push the review into the freelancer's own ad thread
         if guild is not None:
-            tid = await _review_thread(bot, guild, fl)
-            if tid:
-                thread = guild.get_channel(tid)
-                if thread is not None:
-                    await thread.send(view=card)
+            tid = _fl_posts(bot).get(
+                str(pending["freelancer"]), {}
+            ).get("thread")
+            thread = guild.get_channel(tid) if tid else None
+            if thread is not None:
+                await thread.send(view=card)
 
         await interaction.response.send_message(
             "Thanks for the review! ⭐", ephemeral=True
         )
-
-
-async def _review_thread(bot, guild, fl) -> int:
-    """Find-or-create the freelancer's review thread in 🖼️・portfolio."""
-    if fl is None:
-        return 0
-    threads = bot.store.data.setdefault("fl_review_threads", {})
-    tid = threads.get(str(fl.id), 0)
-    if tid and guild.get_channel(tid) is not None:
-        return tid
-    forum = guild.get_channel(PORTFOLIO_FORUM_ID)
-    if forum is None:
-        return 0
-    thread = await forum.create_thread(
-        name=f"⭐ {fl.display_name} — reviews",
-        content="Reviews from this freelancer's orders.",
-    )
-    threads[str(fl.id)] = thread.id
-    await bot.store.save()
-    return thread.id
 
 
 class StarsView(discord.ui.View):
@@ -352,45 +495,6 @@ class StarsView(discord.ui.View):
 class Freelance(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    @commands.Cog.listener()
-    async def on_thread_create(self, thread: discord.Thread):
-        if thread.parent_id != HIRE_FORUM_ID:
-            return
-        guild = thread.guild
-        fl_role = guild.get_role(self.bot.cfg["freelancer_role_id"])
-        member = guild.get_member(thread.owner_id)
-
-        if member is None or (fl_role and fl_role not in member.roles):
-            await thread.delete()
-            return
-        if not thread.applied_tags:
-            await thread.delete()
-            try:
-                await member.send(
-                    "Your service post was removed — you must pick a "
-                    "tag matching your service."
-                )
-            except discord.HTTPException:
-                pass
-            return
-        dupe = next(
-            (t for t in thread.parent.threads
-             if t.id != thread.id and t.owner_id == thread.owner_id),
-            None,
-        )
-        if dupe is not None:
-            await thread.delete()
-            try:
-                await member.send(
-                    f"Only one service post allowed — yours is here: "
-                    f"{dupe.jump_url}"
-                )
-            except discord.HTTPException:
-                pass
-            return
-
-        await thread.send(view=HireView())
 
     @app_commands.command(
         name="deliver",

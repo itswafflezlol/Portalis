@@ -55,13 +55,14 @@ def rules_view() -> discord.ui.LayoutView:
         ),
         ui.Separator(),
         ui.TextDisplay(
-            "### 🛍️ Your service post\n"
-            "Post your ad in 🛍️・services — **one post per "
-            "freelancer**, extras get deleted.\n"
-            "Pick the tag that matches your service, and include "
-            "what you do, portfolio/examples, prices and turnaround "
-            "time. Buyers press **Hire this freelancer** to open an "
-            "order with you."
+            "### 🛍️ Your service ad\n"
+            "Set up your profile in the **set-up** channel — your ad "
+            "gets posted to **💼・freelancers** where buyers can "
+            "find you.\n"
+            "**One ad per freelancer** — re-run setup anytime to "
+            "update it. Include what you do, portfolio, prices and "
+            "turnaround time. Buyers press **Hire this freelancer** "
+            "to open an order with you."
         ),
         ui.Separator(),
         ui.TextDisplay(
