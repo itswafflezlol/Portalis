@@ -35,6 +35,7 @@ WORDS = {
     "server": "WELCOME",
     "rules": "RULES",
     "boost": "BOOST",
+    "ad": "OUR AD",
 }
 
 
