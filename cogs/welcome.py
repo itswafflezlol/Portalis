@@ -119,6 +119,14 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        rid = self.bot.cfg.get("join_role_id")
+        role = member.guild.get_role(rid) if rid else None
+        if role is not None:
+            try:
+                await member.add_roles(role, reason="auto role on join")
+            except discord.Forbidden:
+                pass
+
         cid = self.bot.cfg.get("welcome_channel_id")
         ch = member.guild.get_channel(cid) if cid else None
         if ch is None:

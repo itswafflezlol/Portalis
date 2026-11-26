@@ -23,6 +23,7 @@ DEFAULTS = {
     "paid_category_id": 0,
     "kofi_link": "https://ko-fi.com/REPLACE-ME",
     "welcome_channel_id": 0,
+    "join_role_id": 0,
 }
 
 CONFIG_PATH = Path("config.json")
