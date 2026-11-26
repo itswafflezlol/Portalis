@@ -15,7 +15,7 @@ from cogs.tickets import (
     TicketChannelView,
     TicketPanelView,
 )
-from cogs.admin import PaidAdsPanelView, PingRolesView
+from cogs.admin import PaidAdsPanelView, PingRolesView, StaffGuidesPanelView
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
 
@@ -52,6 +52,7 @@ class Portalis(commands.Bot):
         self.add_view(ApplyPanelView())
         self.add_view(PartnerPanelView())
         self.add_view(PingRolesView())
+        self.add_view(StaffGuidesPanelView())
 
         for ext in (
             "cogs.tickets", "cogs.applications", "cogs.partners",

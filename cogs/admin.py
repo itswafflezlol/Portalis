@@ -6,7 +6,9 @@ from branding import RED, panel_file
 from config import load_config
 from cogs.applications import ApplyPanelView
 from cogs.partners import PartnerPanelView
-from cogs.tickets import TicketPanelView, open_ticket
+from cogs.tickets import TicketPanelView, can_staff, open_ticket
+
+GUIDES_CHANNEL_ID = 1575316311637102762  # 📚・guides
 
 
 class InfoPanelView(discord.ui.LayoutView):
@@ -272,6 +274,47 @@ class PingRolesView(discord.ui.LayoutView):
         return cb
 
 
+class StaffGuidesPanelView(discord.ui.LayoutView):
+    """Static guide card for staff — posted in 📚・guides."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+        ui = discord.ui
+        self.add_item(ui.Container(
+            ui.TextDisplay(
+                "## 🛡️ Staff Guide\n"
+                "**Tickets**\n"
+                "• `/closeticket` — close instantly\n"
+                "• `/closerequest` — ask the owner to confirm closing\n"
+                "• `/pinguser` — check if the ticket owner is still there\n\n"
+                "**Giveaways** (staff only)\n"
+                "• `/giveaway` — start one · `/giveawayend` — draw now\n"
+                "• `/giveawaypause` — freeze/resume · `/giveawayreroll` — redraw"
+            ),
+            ui.Separator(),
+            ui.TextDisplay(
+                "## 🤝 Partnership Manager Guide\n"
+                "**Reviewing partners**\n"
+                "• Partner sends proof screenshot → card lands in "
+                "🤝・partner-reviews\n"
+                "• **Confirm & Post** publishes their ad to the forum · "
+                "**Deny** asks why\n\n"
+                "**Outbound partnerships**\n"
+                "• `/partner` — post another server's ad straight to a forum "
+                "category (no ticket, no checks)\n\n"
+                "**Paid ads** (payment manager)\n"
+                "• Press **Confirm payment** once Ko-fi payment lands\n"
+                "• `/extendpaid <days>` — add time · `/cancelpaid` — "
+                "delete the channel\n"
+                "• Ping tickets: no buttons — verify payment yourself, "
+                "then post their ping"
+            ),
+            ui.Separator(),
+            ui.TextDisplay("-# SMP Portal · Staff only"),
+            accent_color=RED,
+        ))
+
+
 # kind -> (banner file, view class)
 PANELS = {
     "tickets": ("tickets.gif", TicketPanelView),
@@ -313,6 +356,30 @@ class Admin(commands.Cog):
             view=view_cls(), files=[panel_file(banner)]
         )
         await interaction.followup.send("Panel posted.", ephemeral=True)
+
+    @app_commands.command(
+        name="staffpanel",
+        description="Post the staff guides panel in 📚・guides",
+    )
+    async def staffpanel(self, interaction: discord.Interaction):
+        cfg = interaction.client.cfg
+        if not can_staff(interaction.user, cfg):
+            await interaction.response.send_message(
+                "Staff only.", ephemeral=True
+            )
+            return
+        guides = interaction.guild.get_channel(GUIDES_CHANNEL_ID)
+        if guides is None:
+            await interaction.response.send_message(
+                "Guides channel not found.", ephemeral=True
+            )
+            return
+        await guides.send(
+            view=StaffGuidesPanelView(), files=[panel_file("guides.gif")]
+        )
+        await interaction.response.send_message(
+            f"Guides panel posted in {guides.mention}.", ephemeral=True
+        )
 
     @app_commands.command(name="ping", description="Check Portalis latency")
     async def ping(self, interaction: discord.Interaction):
