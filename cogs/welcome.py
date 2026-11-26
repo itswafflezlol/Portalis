@@ -128,6 +128,37 @@ class Welcome(commands.Cog):
         await ch.send(member.mention, view=welcome_view(member), file=file)
 
     @app_commands.command(
+        name="welcome-channel-test",
+        description="Preview the welcome card in the set channel",
+    )
+    async def welcome_channel_test(self, interaction: discord.Interaction):
+        if interaction.user.get_role(WELCOME_ADMIN_ROLE_ID) is None:
+            await interaction.response.send_message(
+                "You can't use this.", ephemeral=True
+            )
+            return
+        cid = self.bot.cfg.get("welcome_channel_id")
+        ch = interaction.guild.get_channel(cid) if cid else None
+        if ch is None:
+            await interaction.response.send_message(
+                "No welcome channel set — use `/welcome-channel` first.",
+                ephemeral=True,
+            )
+            return
+        avatar = await interaction.user.display_avatar.read()
+        file = discord.File(
+            welcome_banner(interaction.user, avatar), "welcome.png"
+        )
+        await ch.send(
+            interaction.user.mention,
+            view=welcome_view(interaction.user),
+            file=file,
+        )
+        await interaction.response.send_message(
+            f"Test welcome posted in {ch.mention}.", ephemeral=True
+        )
+
+    @app_commands.command(
         name="welcome-channel",
         description="Set where new members get welcomed",
     )
