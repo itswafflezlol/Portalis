@@ -43,7 +43,7 @@ async def main():
         cat = guild.get_channel(FREELANCERS_CAT)
 
         setup_ch = await guild.create_text_channel(
-            name="set-up", category=cat,
+            name="💼・setup", category=cat,
             topic="Set up your freelancer profile — your ad gets "
                   "posted to the freelancers forum.",
         )

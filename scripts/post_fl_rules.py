@@ -56,7 +56,7 @@ def rules_view() -> discord.ui.LayoutView:
         ui.Separator(),
         ui.TextDisplay(
             "### 🛍️ Your service ad\n"
-            "Set up your profile in the **set-up** channel — your ad "
+            "Set up your profile in the **💼・setup** channel — your ad "
             "gets posted to **💼・freelancers** where buyers can "
             "find you.\n"
             "**One ad per freelancer** — re-run setup anytime to "
