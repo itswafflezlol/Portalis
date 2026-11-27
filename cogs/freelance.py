@@ -122,7 +122,9 @@ class HireView(discord.ui.LayoutView):
 
         await channel.send(
             view=OrderView(num, buyer.mention, fl.mention),
-            allowed_mentions=discord.AllowedMentions(users=[buyer, fl]),
+            allowed_mentions=discord.AllowedMentions(
+                users=list({buyer.id: buyer, fl.id: fl}.values())
+            ),
         )
         await interaction.followup.send(
             f"Order opened: {channel.mention}", ephemeral=True
