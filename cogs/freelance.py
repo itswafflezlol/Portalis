@@ -208,7 +208,7 @@ class ProfileModal(discord.ui.Modal, title="Your service ad"):
             except discord.HTTPException:
                 thread = None
         if thread is None:
-            thread = await forum.create_thread(
+            thread, _msg = await forum.create_thread(
                 name=f"{name} — {self.tag.title()}",
                 content=ad,
                 applied_tags=[tag_obj] if tag_obj else [],
