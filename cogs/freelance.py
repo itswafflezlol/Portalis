@@ -1,5 +1,6 @@
 """Freelance marketplace: profile setup, service ads, order tickets,
 delivery + reviews."""
+import asyncio
 import io
 import re
 
@@ -76,11 +77,6 @@ class HireView(discord.ui.LayoutView):
                 "This freelancer is no longer available.", ephemeral=True
             )
             return
-        if fl.id == buyer.id:
-            await interaction.response.send_message(
-                "You can't hire yourself.", ephemeral=True
-            )
-            return
         for cid, t in bot.store.data["tickets"].items():
             if t["owner"] == buyer.id and t["type"] == "freelance":
                 await interaction.response.send_message(
@@ -134,25 +130,12 @@ class HireView(discord.ui.LayoutView):
 
 
 class ProfileModal(discord.ui.Modal, title="Your service ad"):
-    offer = discord.ui.TextInput(
-        label="What do you offer?",
-        placeholder="e.g. Custom Skripts, server setups, logo design…",
-        style=discord.TextStyle.paragraph, required=True, max_length=600,
-    )
-    portfolio = discord.ui.TextInput(
-        label="Portfolio / examples (links)",
-        placeholder="Imgur album, website, past work…",
-        style=discord.TextStyle.paragraph, required=True, max_length=400,
-    )
-    prices = discord.ui.TextInput(
-        label="Your prices",
-        placeholder="e.g. Skripts from $5 · thumbnails $2 each",
-        style=discord.TextStyle.paragraph, required=True, max_length=300,
-    )
-    turnaround = discord.ui.TextInput(
-        label="Turnaround time (optional)",
-        placeholder="e.g. 2–5 days per order",
-        style=discord.TextStyle.short, required=False, max_length=100,
+    ad = discord.ui.TextInput(
+        label="Your ad — write it how you want",
+        placeholder="What you do, portfolio links, prices, "
+                    "turnaround — it's your ad.",
+        style=discord.TextStyle.paragraph, required=True,
+        max_length=1800,
     )
 
     def __init__(self, tag: str):
@@ -167,23 +150,45 @@ class ProfileModal(discord.ui.Modal, title="Your service ad"):
             )
             return
 
+        await interaction.response.send_message(
+            "Got it — **send your images now** (up to 4 in one "
+            "message), or type `skip`. You have 60 seconds.",
+            ephemeral=True,
+        )
+
+        files = []
+        try:
+            msg = await bot.wait_for(
+                "message",
+                check=lambda m: m.author.id == interaction.user.id
+                and m.channel.id == SETUP_CHANNEL_ID,
+                timeout=60,
+            )
+            if msg.content.strip().lower() != "skip":
+                files = [
+                    discord.File(
+                        io.BytesIO(await a.read()), filename=a.filename
+                    )
+                    for a in msg.attachments[:4]
+                ]
+            try:
+                await msg.delete()  # keep set-up clean
+            except discord.HTTPException:
+                pass
+        except asyncio.TimeoutError:
+            pass
+
         name = interaction.user.display_name
         ad = (
             f"# 🛍️ {name} — {self.tag.title()}\n"
-            f"## What I do\n{self.offer.value}\n\n"
-            f"## 📁 Portfolio\n{self.portfolio.value}\n\n"
-            f"## 💰 Prices\n{self.prices.value}\n"
-        )
-        if self.turnaround.value:
-            ad += f"\n## ⏱️ Turnaround\n{self.turnaround.value}\n"
-        ad += (
-            "\n-# Order via the button below — payments go "
+            f"{self.ad.value}\n\n"
+            "-# Order via the button below — payments go "
             "through SMP Portal."
         )
 
         forum = interaction.guild.get_channel(SERVICE_FORUM_ID)
         if forum is None:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Services forum not found.", ephemeral=True
             )
             return
@@ -205,6 +210,8 @@ class ProfileModal(discord.ui.Modal, title="Your service ad"):
                 )
                 starter = await thread.fetch_message(thread.id)
                 await starter.edit(content=ad)
+                if files:
+                    await thread.send(files=files)
             except discord.HTTPException:
                 thread = None
         if thread is None:
@@ -214,10 +221,12 @@ class ProfileModal(discord.ui.Modal, title="Your service ad"):
                 applied_tags=[tag_obj] if tag_obj else [],
             )
             me["thread"] = thread.id
+            if files:
+                await thread.send(files=files)
             await thread.send(view=HireView())
         me["tag"] = self.tag
         await bot.store.save()
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Your ad is live: {thread.jump_url}", ephemeral=True
         )
 
@@ -256,7 +265,8 @@ class SetUpView(discord.ui.LayoutView):
         self.add_item(ui.Container(
             ui.TextDisplay(
                 "## 🛍️ Set up your freelancer ad\n"
-                "Fill in your profile — your ad gets posted to "
+                "Pick a tag, write your ad however you want, "
+                "attach your images — it gets posted to "
                 "**💼・freelancers** where buyers can hire you.\n\n"
                 "-# One ad per freelancer — re-run this anytime "
                 "to update it."
