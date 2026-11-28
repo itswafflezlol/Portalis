@@ -3,6 +3,9 @@ import logging
 import discord
 from discord.ext import commands
 
+from sillydev import monitoring
+from sillydev.monitoring.discord import monitor_bot
+
 from config import TOKEN, load_config
 from storage import Store
 from cogs.tickets import (
@@ -21,6 +24,8 @@ from cogs.partners import PartnerPanelView
 from cogs.freelance import HireView, OrderView, PaidView, SetUpView, StarsView
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+monitoring.init(service="portalis")  # reads SILLYDEV_MONITORING_KEY
 
 
 class Portalis(commands.Bot):
@@ -84,4 +89,4 @@ class Portalis(commands.Bot):
 if __name__ == "__main__":
     if not TOKEN:
         raise SystemExit("Set DISCORD_TOKEN in .env (see .env.example)")
-    Portalis().run(TOKEN)
+    monitor_bot(Portalis()).run(TOKEN)

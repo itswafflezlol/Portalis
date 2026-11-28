@@ -270,10 +270,10 @@ class TicketChannelView(discord.ui.LayoutView):
         ticket["claimed_by"] = interaction.user.id
         await bot.store.save()
         self.claim_btn.disabled = True
-        await interaction.message.edit(view=self)
         await interaction.response.send_message(
             f"🚩 {interaction.user.mention} claimed this ticket."
         )
+        await interaction.message.edit(view=self)
 
     async def _close(self, interaction: discord.Interaction):
         bot = interaction.client
@@ -416,10 +416,11 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
         try:
             invite = await bot.fetch_invite(invite_match.group(0))
         except (discord.NotFound, discord.HTTPException):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "That invite link doesn't work — make sure it's a "
                 "permanent invite (`discord.gg/...`) and send it again.",
                 ephemeral=True,
@@ -427,7 +428,7 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
             return
         members = invite.approximate_member_count or 0
         if members < 25:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Partnerships need **25+ members** — that server has "
                 f"~{members}. Come back when it grows! 🌱", ephemeral=True,
             )
@@ -440,7 +441,7 @@ class AdModal(discord.ui.Modal, title="Your server ad"):
         ticket["pending_ad"] = pending
         await bot.store.save()
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Last step — post **our ad** (below) in your server with "
             "an `@everyone` ping added to it, then **send a "
             "screenshot** of it here. Staff will review everything."
@@ -527,6 +528,7 @@ class AdReviewView(discord.ui.LayoutView):
             )
             return
 
+        await interaction.response.defer()
         review_msgs = pending.get("review_msgs", [])
         posted = await forum.create_thread(
             name=pending["server"], content=pending["text"]
@@ -546,7 +548,7 @@ class AdReviewView(discord.ui.LayoutView):
             status="approved", actor=interaction.user.display_name,
             extra=f"Live: {thread.jump_url}",
         )
-        await interaction.response.edit_message(view=done)
+        await interaction.message.edit(view=done)
         await _sync_review_cards(
             bot, interaction.guild, review_msgs, done,
             skip=interaction.message.id,
@@ -879,11 +881,12 @@ class ChannelNameModal(discord.ui.Modal, title="Channel emoji & name"):
         )
         payer_txt = payer.mention if payer else "the payment manager"
         owner = interaction.user.mention
+        await interaction.response.defer(ephemeral=True)
         await interaction.channel.send(view=NameApprovalView(
             self.emoji.value.strip(), self.name.value.strip(), owner,
             payer_txt,
         ))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Sent for approval.", ephemeral=True
         )
 
@@ -991,6 +994,7 @@ class NameApprovalView(discord.ui.LayoutView):
                     read_message_history=True, mention_everyone=False,
                 )
 
+        await interaction.response.defer()
         channel = await guild.create_text_channel(
             name=f"{emoji}・{name}", category=category, overwrites=overwrites,
         )
@@ -1010,7 +1014,7 @@ class NameApprovalView(discord.ui.LayoutView):
         del ticket["pending_channel"]
         await bot.store.save()
 
-        await interaction.response.edit_message(
+        await interaction.message.edit(
             view=NameApprovalView(
                 emoji, name, status="approved",
                 actor=interaction.user.mention,

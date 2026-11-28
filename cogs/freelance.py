@@ -14,11 +14,12 @@ from cogs.tickets import can_staff, close_ticket
 SETUP_CHANNEL_ID = 1575661190502158430    # set-up (freelancers only)
 SERVICE_FORUM_ID = 1575311075778240592    # 💼・freelancers (public)
 ORDERS_CATEGORY_ID = 1575566377111003186  # Freelance Orders
-REVIEWS_CHANNEL_ID = 1575566378247790714  # ⭐・reviews
+REVIEWS_CHANNEL_ID = 1575666056247119953  # ⭐・reviews
+CUSTOMER_ROLE_ID = 1575671421944860742  # granted on completed orders
 
 SKILL_TAGS = [
     "art", "plugins", "skripts", "thumbnails",
-    "models", "datapacks", "web development",
+    "models", "datapacks", "web development", "editing",
 ]
 
 
@@ -184,8 +185,8 @@ class ProfileModal(discord.ui.Modal, title="Your service ad"):
         ad = (
             f"# 🛍️ {name} — {self.tag.title()}\n"
             f"{self.ad.value}\n\n"
-            "-# Order via the button below — payments go "
-            "through SMP Portal."
+            "-# Order via the button below — buyer pays the "
+            "freelancer directly first."
         )
 
         forum = interaction.guild.get_channel(SERVICE_FORUM_ID)
@@ -447,6 +448,7 @@ class ReviewModal(discord.ui.Modal, title="Leave a review"):
                 "Nothing to review.", ephemeral=True
             )
             return
+        await interaction.response.defer(ephemeral=True)
         await bot.store.save()
 
         guild = bot.get_guild(bot.cfg["guild_id"])
@@ -476,11 +478,16 @@ class ReviewModal(discord.ui.Modal, title="Leave a review"):
             tid = _fl_posts(bot).get(
                 str(pending["freelancer"]), {}
             ).get("thread")
-            thread = guild.get_channel(tid) if tid else None
+            thread = guild.get_thread(tid) if tid else None
+            if thread is None and tid:
+                try:
+                    thread = await guild.fetch_channel(tid)
+                except discord.HTTPException:
+                    thread = None
             if thread is not None:
                 await thread.send(view=card)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Thanks for the review! ⭐", ephemeral=True
         )
 
@@ -530,10 +537,11 @@ class Freelance(commands.Cog):
                 "The buyer left the server.", ephemeral=True
             )
             return
+        await interaction.response.defer()
         try:
             data = io.BytesIO(await file.read())
         except discord.HTTPException:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Couldn't read that file — too big?", ephemeral=True
             )
             return
@@ -552,13 +560,23 @@ class Freelance(commands.Cog):
                 view=StarsView(),
             )
         except discord.Forbidden:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Their DMs are closed — can't deliver.", ephemeral=True
             )
             return
         t["state"] = "delivered"
         await self.bot.store.save()
-        await interaction.response.send_message(
+
+        role = interaction.guild.get_role(CUSTOMER_ROLE_ID)
+        if role is not None and role not in buyer.roles:
+            try:
+                await buyer.add_roles(
+                    role, reason=f"Completed order #{t['order']}"
+                )
+            except discord.HTTPException:
+                pass
+
+        await interaction.followup.send(
             f"📦 Delivered to {buyer.mention} — they got a review "
             "request too.",
             allowed_mentions=discord.AllowedMentions(users=[buyer]),

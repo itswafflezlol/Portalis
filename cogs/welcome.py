@@ -27,10 +27,13 @@ CHANNELS = [
 
 
 def _font(size: int) -> ImageFont.FreeTypeFont:
-    for name in ("segoeuib.ttf", "arialbd.ttf"):
-        p = Path(r"C:\Windows\Fonts") / name
-        if p.exists():
-            return ImageFont.truetype(str(p), size)
+    bundled = ASSETS / "fonts"
+    for name in ("DejaVuSans-Bold.ttf", "segoeuib.ttf", "arialbd.ttf"):
+        for p in (bundled / name,
+                  Path(r"C:\Windows\Fonts") / name,
+                  Path("/usr/share/fonts/truetype/dejavu") / name):
+            if p.exists():
+                return ImageFont.truetype(str(p), size)
     return ImageFont.load_default()
 
 
@@ -84,7 +87,9 @@ def welcome_banner(member: discord.Member, avatar: bytes) -> io.BytesIO:
     d.text((tx + 4, 350),
            f"member #{member.guild.member_count:,}",
            font=_font(38), fill=(255, 255, 255, 180))
-    d.text((W - 250, H - 80), "smpportal", font=_font(46), fill="white")
+    brand_f = _font(46)
+    d.text((W - 60 - d.textlength("smpportal", font=brand_f), H - 80),
+           "smpportal", font=brand_f, fill="white")
 
     buf = io.BytesIO()
     bg.convert("RGB").save(buf, "PNG")
@@ -153,6 +158,7 @@ class Welcome(commands.Cog):
                 ephemeral=True,
             )
             return
+        await interaction.response.defer(ephemeral=True)
         avatar = await interaction.user.display_avatar.read()
         file = discord.File(
             welcome_banner(interaction.user, avatar), "welcome.png"
@@ -160,7 +166,7 @@ class Welcome(commands.Cog):
         await ch.send(
             view=welcome_view(interaction.user), file=file,
         )
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Test welcome posted in {ch.mention}.", ephemeral=True
         )
 

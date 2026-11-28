@@ -59,12 +59,13 @@ class PartnerAdModal(discord.ui.Modal, title="Post partner ad"):
                 "Missing forum channel in config.", ephemeral=True
             )
             return
+        await interaction.response.defer(ephemeral=True)
         posted = await forum.create_thread(
             name=self.server.value.strip(),
             content=self.ad.value.strip(),
         )
         await posted.thread.edit(locked=True)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Posted to {forum.mention}: {posted.thread.jump_url}",
             ephemeral=True,
         )

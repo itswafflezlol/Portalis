@@ -22,24 +22,20 @@ def rules_view() -> discord.ui.LayoutView:
         ),
         ui.Separator(),
         ui.TextDisplay(
-            "### 💰 Payment split\n"
-            "**85%** of every payment goes straight to **you**\n"
-            "**15%** goes to SMP Portal"
-        ),
-        ui.Separator(),
-        ui.TextDisplay(
             "### 💳 Payment methods\n"
-            "You **must** be able to receive **PayPal** or **bank "
-            "transfer** — no other payment method.\n"
-            "If you can't get either, we can't offer your services "
-            "until you do."
+            "Payments go **directly** between buyer and freelancer — "
+            "SMP Portal does **not** handle payments.\n"
+            "You **must** be able to receive **Ko-fi**, **PayPal**, or "
+            "another legit payment method — nothing sketchy.\n"
+            "If you can't get any of those, we can't offer your "
+            "services until you do."
         ),
         ui.Separator(),
         ui.TextDisplay(
             "### ✅ The rules\n"
-            "• All payments go through **us** (SMP Portal) — **never** "
-            "take direct payment. Freelancers caught going around us "
-            "lose the role.\n"
+            "• Payments are **your** deal with the buyer — SMP Portal "
+            "just connects you two and isn't responsible for "
+            "disputes.\n"
             "• Deliver what you promise. If you can't finish a job, "
             "tell the client and staff right away.\n"
             "• No scamming, no stolen work, no selling other people's "

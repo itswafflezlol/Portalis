@@ -56,7 +56,7 @@ on boot.
    | `partners_channel_id` | Staff review channel for partner requests |
    | `ads_channel_id` | Where approved partner ads are posted |
 
-6. Run `python bot.py`, then post panels with `/panel`.
+6. Run `python app.py`, then post panels with `/panel`.
 
 ## Branding
 

@@ -78,6 +78,7 @@ class ApplicationModal(discord.ui.Modal, title="Freelancer Application"):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
         app = {
             "id": await bot.store.new_id(),
             "user_id": interaction.user.id,
@@ -94,7 +95,7 @@ class ApplicationModal(discord.ui.Modal, title="Freelancer Application"):
             embed=review_embed(app, "Pending"),
             view=ApplicationReviewView(app["id"]),
         )
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Application submitted — the team will review it soon.", ephemeral=True
         )
 
@@ -124,6 +125,7 @@ async def decide(interaction: discord.Interaction, app_id: int,
         )
         return
 
+    await interaction.response.defer()
     app["status"] = "accepted" if approved else "denied"
     await bot.store.save()
 
@@ -158,7 +160,7 @@ async def decide(interaction: discord.Interaction, app_id: int,
             view.add_item(discord.ui.Button(
                 label=comp.label, style=comp.style, emoji=comp.emoji, disabled=True,
             ))
-    await interaction.response.edit_message(
+    await interaction.message.edit(
         embed=review_embed(app, status, str(interaction.user), reason), view=view,
     )
 

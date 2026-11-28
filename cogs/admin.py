@@ -259,15 +259,16 @@ class PingRolesView(discord.ui.LayoutView):
                     "That role isn't set up yet.", ephemeral=True
                 )
                 return
+            await interaction.response.defer(ephemeral=True)
             if role in interaction.user.roles:
                 await interaction.user.remove_roles(role)
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"**{role.name}** removed — no more pings.",
                     ephemeral=True,
                 )
             else:
                 await interaction.user.add_roles(role)
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"**{role.name}** added — you'll get pinged.",
                     ephemeral=True,
                 )
@@ -374,10 +375,11 @@ class Admin(commands.Cog):
                 "Guides channel not found.", ephemeral=True
             )
             return
+        await interaction.response.defer(ephemeral=True)
         await guides.send(
             view=StaffGuidesPanelView(), files=[panel_file("guides.gif")]
         )
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Guides panel posted in {guides.mention}.", ephemeral=True
         )
 
