@@ -1,5 +1,6 @@
 """Welcomer: greets new members with a personalised banner card."""
 import io
+import logging
 from pathlib import Path
 
 import discord
@@ -136,9 +137,21 @@ class Welcome(commands.Cog):
         ch = member.guild.get_channel(cid) if cid else None
         if ch is None:
             return
-        avatar = await member.display_avatar.read()
-        file = discord.File(welcome_banner(member, avatar), "welcome.png")
-        await ch.send(view=welcome_view(member), file=file)
+        try:
+            avatar = await member.display_avatar.read()
+            file = discord.File(
+                welcome_banner(member, avatar), "welcome.png"
+            )
+            await ch.send(view=welcome_view(member), file=file)
+        except discord.Forbidden:
+            logging.getLogger("portalis").warning(
+                "Welcome card blocked — no send/attach perms in #%s",
+                ch.name,
+            )
+        except discord.HTTPException:
+            logging.getLogger("portalis").exception(
+                "Welcome card failed for %s", member
+            )
 
     @app_commands.command(
         name="welcome-channel-test",
